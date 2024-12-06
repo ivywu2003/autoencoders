@@ -1,12 +1,12 @@
 from mae_vit import MaskedAutoencoderViTForMNIST
 import sys
-sys.path.insert(0, './mae')
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 transform = transforms.Compose([
@@ -32,7 +32,7 @@ mae_model = MaskedAutoencoderViTForMNIST(
 print("model initialized")
 mae_model.load_state_dict(torch.load('mae_weights_vit_patch2_20epochs.pth'))  # Load the saved weights
 print("model loaded")
-import matplotlib.pyplot as plt
+
 
 def visualize_reconstruction(model, dataloader, device, mask_ratio=0.75, num_images=5):
     model.eval()
