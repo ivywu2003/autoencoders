@@ -1,6 +1,8 @@
 import sys
-sys.path.insert(0, './../mae')
-from models_mae import MaskedAutoencoderViT
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+from mae.models_mae import MaskedAutoencoderViT
 
 import torch
 import torch.nn as nn
