@@ -16,7 +16,7 @@ def plot_weight_distribution(model, bins=256, count_nonzero_only=False):
             num_graphs += 1
 
     # Create subplots
-    fig, axes = plt.subplots(num_graphs, 1, figsize=(10, 60))
+    fig, axes = plt.subplots(num_graphs, 1, figsize=(8, 4 * num_graphs))
     axes = axes.ravel()
     plot_index = 0
     for name, param in model.named_parameters():
