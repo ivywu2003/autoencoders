@@ -70,7 +70,7 @@ if __name__ == '__main__':
     else:
         model = CIFAR10MaskedAutoencoder().to(device)
     
-    model.load_state_dict(torch.load(f'cifar10_{args.model}_weights.pth'))
+    model.load_state_dict(torch.load(f'cifar10_{args.model}_weights_30_epochs.pth'))
     model.eval()
     
     # Prepare data
