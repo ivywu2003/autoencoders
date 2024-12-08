@@ -68,11 +68,9 @@ class CIFAR10MaskedAutoencoder(MaskedAutoencoderViT):
 
         attn_weights_all = []
         for blk in self.blocks:
+            x, attn = blk(x, return_attention=True)
             if return_attention:
-                x, attn = blk(x, return_attention=True)
                 attn_weights_all.append(attn)
-            else:
-                x = blk(x, return_attention=False)
 
         x = self.norm(x)
 
