@@ -1,0 +1,4 @@
+[submodule "mae"]
+	path = mae
+	url = https://github.com/woxsao/mae.git
+	branch = main
