@@ -9,7 +9,10 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from cifar10_models import CIFAR10Autoencoder, CIFAR10MaskedAutoencoder
+from einops import repeat, rearrange
+from einops.layers.torch import Rearrange
+
+from cifar10_models import CIFAR10Autoencoder, CIFAR10MaskedAutoencoder, CustomCIFAR10MaskedAutoencoder, MAEEncoder
 
 # CIFAR-10 classes
 CLASSES = ('plane', 'car', 'bird', 'cat', 'deer',
@@ -58,6 +61,27 @@ class CIFAR10Classifier(nn.Module):
             features = features[:, 0]  # Take CLS token: B x D
         
         return self.classifier(features)
+
+class ViT_Classifier(torch.nn.Module):
+    def __init__(self, encoder : MAEEncoder, num_classes=10) -> None:
+        super().__init__()
+        self.cls_token = encoder.cls_token
+        self.pos_embedding = encoder.pos_embedding
+        self.patchify = encoder.patchify
+        self.transformer = encoder.transformer
+        self.layer_norm = encoder.layer_norm
+        self.head = torch.nn.Linear(self.pos_embedding.shape[-1], num_classes)
+
+    def forward(self, img):
+        patches = self.patchify(img)
+        patches = rearrange(patches, 'b c h w -> (h w) b c')
+        patches = patches + self.pos_embedding
+        patches = torch.cat([self.cls_token.expand(-1, patches.shape[1], -1), patches], dim=0)
+        patches = rearrange(patches, 't b c -> b t c')
+        features = self.layer_norm(self.transformer(patches))
+        features = rearrange(features, 'b t c -> t b c')
+        logits = self.head(features[0])
+        return logits
 
 def get_data_loaders(batch_size=128):
     """Set up CIFAR-10 data loaders"""
@@ -137,7 +161,7 @@ def train_classifier(model, trainloader, testloader, num_epochs=100,
             torch.save(model.state_dict(), save_path)
             print(f'Saved model with accuracy: {best_acc:.2f}%')
         
-        scheduler.step(acc)
+        scheduler.step()
     
     return model
 
@@ -148,24 +172,37 @@ if __name__ == '__main__':
     parser.add_argument('--model', type=str, choices=['ae', 'mae'], default='ae')
     parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--load_pretrained', action=argparse.BooleanOptionalAction)
+    parser.add_argument('--freeze_encoder', action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
 
     # Load the desired encoder model
     if args.model == 'ae':
         enc_model = CIFAR10Autoencoder().to(device)
+        enc_model.load_state_dict(torch.load(f'cifar10_{args.model}_weights_20_epochs.pth'))
+        enc_model.eval()
+        if args.freeze_encoder:
+            for param in enc_model.parameters():
+                param.requires_grad = False
+        classifier = CIFAR10Classifier(encoder_model=enc_model, encoder_type=args.model).to(device)
+        if args.load_pretrained:
+            classifier.load_state_dict(torch.load(f'cifar10_classifier_{args.model}.pth'))
     elif args.model == 'mae':
-        enc_model = CIFAR10MaskedAutoencoder().to(device)
+        enc_model = CustomCIFAR10MaskedAutoencoder().to(device)
+        enc_model.load_state_dict(torch.load(f'cifar10_{args.model}_weights_20_epochs.pth'))
+        enc_model.eval()
+        enc_model = enc_model.encoder
+        if args.freeze_encoder:
+            for param in enc_model.parameters():
+                param.requires_grad = False
+        classifier = ViT_Classifier(enc_model).to(device)
+        if args.load_pretrained:
+            classifier.load_state_dict(torch.load(f'cifar10_classifier_{args.model}.pth'))
     else:
         raise ValueError(f'Unknown model: {args.model}')
-    enc_model.load_state_dict(torch.load(f'cifar10_{args.model}_weights_20_epochs.pth'))
-    enc_model.eval()
-
+    
     trainloader, testloader = get_data_loaders(batch_size=128)
 
     # Train the classifier
-    classifier = CIFAR10Classifier(encoder_model=enc_model, encoder_type=args.model).to(device)
-    if args.load_pretrained:
-        classifier.load_state_dict(torch.load(f'cifar10_classifier_{args.model}.pth'))
     classifier = train_classifier(classifier, trainloader, testloader, 
                                   num_epochs=args.epochs, device=device, 
                                   save_path=f'cifar10_classifier_{args.model}_patch_size_2.pth')

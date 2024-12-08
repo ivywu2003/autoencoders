@@ -101,7 +101,7 @@ if __name__ == '__main__':
     elif args.model == 'mae':
         model = CustomCIFAR10MaskedAutoencoder().to(device)
         if args.load_pretrained:
-            model.load_state_dict(torch.load(f'cifar10_mae_weights_15_epochs.pth'))
+            model.load_state_dict(torch.load(f'cifar10_mae_weights_10_epochs_custom.pth'))
     else:
         raise ValueError(f'Unknown model: {args.model}')
 
@@ -134,4 +134,4 @@ if __name__ == '__main__':
         
         print(f'Test loss: {test_loss/len(testloader):.4f}')
     
-    torch.save(model.state_dict(), f'cifar10_{args.model}_weights_10_epochs_custom.pth')
+    torch.save(model.state_dict(), f'cifar10_{args.model}_weights_20_epochs_custom.pth')

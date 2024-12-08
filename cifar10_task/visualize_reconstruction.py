@@ -4,7 +4,7 @@ import torch.nn as nn
 import torchvision
 import matplotlib.pyplot as plt
 from torchvision import transforms
-from cifar10_models import CIFAR10Autoencoder, CIFAR10MaskedAutoencoder
+from cifar10_models import CIFAR10Autoencoder, CIFAR10MaskedAutoencoder, CustomCIFAR10MaskedAutoencoder
 
 def denormalize(x, device):
     """Denormalize images"""
@@ -27,9 +27,9 @@ def visualize_reconstructions(model, dataloader, device, model_type='ae', num_im
             images = denormalize(images, device)
             reconstructed = denormalize(reconstructed, device)
         else:  # mae
-            _, reconstructed, _ = model(images)
-            # Unpatchify and denormalize
-            reconstructed = model.unpatchify(reconstructed)
+            predicted, mask = model(images)
+            # Unmask
+            reconstructed = predicted * mask + images * (1 - mask)
             # Denormalize images
             images = denormalize(images, device)
             reconstructed = denormalize(reconstructed, device)
@@ -68,9 +68,9 @@ if __name__ == '__main__':
     if args.model == 'ae':
         model = CIFAR10Autoencoder().to(device)
     else:
-        model = CIFAR10MaskedAutoencoder().to(device)
+        model = CustomCIFAR10MaskedAutoencoder().to(device)
     
-    model.load_state_dict(torch.load(f'cifar10_{args.model}_weights_30_epochs.pth'))
+    model.load_state_dict(torch.load(f'cifar10_{args.model}_weights_10_epochs_custom.pth', map_location=torch.device('cpu')))
     model.eval()
     
     # Prepare data
