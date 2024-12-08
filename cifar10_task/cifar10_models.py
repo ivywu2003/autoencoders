@@ -69,10 +69,10 @@ class CIFAR10MaskedAutoencoder(MaskedAutoencoderViT):
         attn_weights_all = []
         for blk in self.blocks:
             if return_attention:
-                x, attn_weights = blk(x, return_attention=True)
-                attn_weights_all.append(attn_weights)
+                x, attn = blk(x, return_attention=True)
+                attn_weights_all.append(attn)
             else:
-                x = blk(x)
+                x = blk(x, return_attention=False)
 
         x = self.norm(x)
 
@@ -80,19 +80,18 @@ class CIFAR10MaskedAutoencoder(MaskedAutoencoderViT):
             return x, mask, ids_restore, attn_weights_all
         return x, mask, ids_restore
 
-    def forward(self, imgs, mask_ratio=0.75, return_latent=False, return_attention=True):
+    def forward(self, imgs, mask_ratio=0.75, return_latent=False, return_attention=False):
         if return_attention:
             latent, mask, ids_restore, attn_weights_all = self.forward_encoder(imgs, mask_ratio, True)
+            pred = self.forward_decoder(latent, ids_restore)
+            loss = self.forward_loss(imgs, pred, mask)
+            if return_latent:
+                return latent, loss, pred, mask, attn_weights_all
+            return loss, pred, mask, attn_weights_all
         else:
             latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio, False)
-        
-        pred = self.forward_decoder(latent, ids_restore)
-        loss = self.forward_loss(imgs, pred, mask)
-        
-        if return_latent and return_attention:
-            return latent, loss, pred, mask, attn_weights_all
-        if return_latent:
-            return latent, loss, pred, mask
-        if return_attention:
-            return loss, pred, mask, attn_weights_all
-        return loss, pred, mask
+            pred = self.forward_decoder(latent, ids_restore)
+            loss = self.forward_loss(imgs, pred, mask)
+            if return_latent:
+                return latent, loss, pred, mask
+            return loss, pred, mask
