@@ -7,9 +7,9 @@ from torchvision import transforms
 from cifar10_models import CIFAR10Autoencoder, CIFAR10MaskedAutoencoder
 
 def denormalize(x, device):
-    """Denormalize CIFAR10 images"""
-    mean = torch.tensor([0.4914, 0.4822, 0.4465]).view(3, 1, 1).to(device)
-    std = torch.tensor([0.2023, 0.1994, 0.2010]).view(3, 1, 1).to(device)
+    """Denormalize images"""
+    mean = torch.tensor([0.5]).to(device)
+    std = torch.tensor([0.5]).to(device)
     return x * std + mean
 
 def visualize_reconstructions(model, dataloader, device, model_type='ae', num_images=8):
@@ -76,8 +76,7 @@ if __name__ == '__main__':
     # Prepare data
     transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), 
-                           (0.2023, 0.1994, 0.2010))
+        transforms.Normalize(0.5, 0.5)
     ])
     
     testset = torchvision.datasets.CIFAR10(
