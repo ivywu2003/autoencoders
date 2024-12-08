@@ -1,4 +1,5 @@
 import argparse
+import math
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -165,6 +166,59 @@ def train_classifier(model, trainloader, testloader, num_epochs=100,
     
     return model
 
+def train_vit_classifier(model, device, train_dataloader, val_dataloader, epochs):
+    loss_fn = torch.nn.CrossEntropyLoss()
+    acc_fn = lambda logit, label: torch.mean((logit.argmax(dim=-1) == label).float())
+
+    optim = torch.optim.AdamW(model.parameters(), lr=1e-4 * 128 / 256, betas=(0.9, 0.999), weight_decay=1e-5)
+    lr_func = lambda epoch: min((epoch + 1) / (epochs / 10 + 1e-8), 0.5 * (math.cos(epochs / 10* math.pi) + 1))
+    lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optim, lr_lambda=lr_func, verbose=True)
+
+    best_val_acc = 0
+    step_count = 0
+    optim.zero_grad()
+    for e in range(epochs):
+        model.train()
+        losses = []
+        acces = []
+        for img, label in tqdm(iter(train_dataloader)):
+            step_count += 1
+            img = img.to(device)
+            label = label.to(device)
+            logits = model(img)
+            loss = loss_fn(logits, label)
+            acc = acc_fn(logits, label)
+            loss.backward()
+            optim.step()
+            optim.zero_grad()
+            losses.append(loss.item())
+            acces.append(acc.item())
+        lr_scheduler.step()
+        avg_train_loss = sum(losses) / len(losses)
+        avg_train_acc = sum(acces) / len(acces)
+        print(f'In epoch {e}, average training loss is {avg_train_loss}, average training acc is {avg_train_acc}.')
+
+        model.eval()
+        with torch.no_grad():
+            losses = []
+            acces = []
+            for img, label in tqdm(iter(val_dataloader)):
+                img = img.to(device)
+                label = label.to(device)
+                logits = model(img)
+                loss = loss_fn(logits, label)
+                acc = acc_fn(logits, label)
+                losses.append(loss.item())
+                acces.append(acc.item())
+            avg_val_loss = sum(losses) / len(losses)
+            avg_val_acc = sum(acces) / len(acces)
+            print(f'In epoch {e}, average validation loss is {avg_val_loss}, average validation acc is {avg_val_acc}.')  
+
+        if avg_val_acc > best_val_acc:
+            best_val_acc = avg_val_acc
+            print(f'saving best model with acc {best_val_acc} at {e} epoch!')       
+            torch.save(model, 'cifar10_classifier_mae_custom.pth')
+
 if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -188,7 +242,7 @@ if __name__ == '__main__':
             classifier.load_state_dict(torch.load(f'cifar10_classifier_{args.model}.pth'))
     elif args.model == 'mae':
         enc_model = CustomCIFAR10MaskedAutoencoder().to(device)
-        enc_model.load_state_dict(torch.load(f'cifar10_{args.model}_weights_20_epochs.pth'))
+        enc_model.load_state_dict(torch.load(f'cifar10_{args.model}_weights_10_epochs_custom.pth', map_location=device))
         enc_model.eval()
         enc_model = enc_model.encoder
         if args.freeze_encoder:
@@ -203,6 +257,9 @@ if __name__ == '__main__':
     trainloader, testloader = get_data_loaders(batch_size=128)
 
     # Train the classifier
-    classifier = train_classifier(classifier, trainloader, testloader, 
+    if args.model == 'ae':
+        train_classifier(classifier, trainloader, testloader, 
                                   num_epochs=args.epochs, device=device, 
                                   save_path=f'cifar10_classifier_{args.model}_patch_size_2.pth')
+    else:
+        train_vit_classifier(classifier, device, trainloader, testloader, args.epochs)
