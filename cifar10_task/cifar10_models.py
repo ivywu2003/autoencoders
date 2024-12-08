@@ -10,6 +10,8 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
+from models_mae import MaskedAutoencoderViT
+
 class CIFAR10Autoencoder(nn.Module):
     def __init__(self, latent_dim=64, norm_pix_loss=False):
         super().__init__()
