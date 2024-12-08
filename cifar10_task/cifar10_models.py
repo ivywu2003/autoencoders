@@ -49,10 +49,9 @@ class CIFAR10Autoencoder(nn.Module):
         return x
 
 class CIFAR10MaskedAutoencoder(MaskedAutoencoderViT):
-    def __init__(self, img_size=32, patch_size=4, in_channels=1, embed_dim=64, depth=4, num_heads=8, decoder_embed_dim=32, decoder_depth=2, decoder_num_heads=8, mlp_ratio=4.0, norm_layer=nn.LayerNorm, norm_pix_loss=False):
+    def __init__(self, img_size=32, patch_size=4, in_chans=3, embed_dim=64, depth=4, num_heads=8, decoder_embed_dim=32, decoder_depth=2, decoder_num_heads=8, mlp_ratio=4.0, norm_layer=nn.LayerNorm, norm_pix_loss=False):
         self.patch_size = patch_size
-        self.in_chans = in_channels
-        super().__init__(img_size, patch_size, in_chans, embed_dim, depth, num_heads, decoder_embed_dim, decoder_depth, decoder_num_heads, mlp_ratio, norm_layer, norm_pix_loss)
+        super().__init__(img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim, depth=depth, num_heads=num_heads, decoder_embed_dim=decoder_embed_dim, decoder_depth=decoder_depth, decoder_num_heads=decoder_num_heads, mlp_ratio=mlp_ratio, norm_layer=norm_layer, norm_pix_loss=norm_pix_loss)
 
     def forward_encoder(self, x, mask_ratio, return_attention=False):
         x = self.patch_embed(x)
