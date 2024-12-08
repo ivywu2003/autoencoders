@@ -23,12 +23,16 @@ def visualize_reconstructions(model, dataloader, device, model_type='ae', num_im
     with torch.no_grad():
         if model_type == 'ae':
             reconstructed = model(images)
+            # Denormalize images
+            images = denormalize(images, device)
+            reconstructed = denormalize(reconstructed, device)
         else:  # mae
             _, reconstructed, _ = model(images)
-    
-    # Denormalize images
-    images = denormalize(images, device)
-    reconstructed = denormalize(reconstructed, device)
+            # Unpatchify and denormalize
+            reconstructed = model.unpatchify(reconstructed)
+            # Denormalize images
+            images = denormalize(images, device)
+            reconstructed = denormalize(reconstructed, device)
     
     # Plot original and reconstructed images
     fig, axes = plt.subplots(2, num_images, figsize=(2*num_images, 4))

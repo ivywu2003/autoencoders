@@ -93,12 +93,17 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, choices=['ae', 'mae'], default='ae')
     parser.add_argument('--epochs', type=int, default=10)
+    parser.add_argument('--load_pretrained', action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
 
     if args.model == 'ae':
         model = CIFAR10Autoencoder().to(device)
+        if args.load_pretrained:
+            model.load_state_dict(torch.load(f'cifar10_ae_weights.pth'))
     elif args.model == 'mae':
         model = CIFAR10MaskedAutoencoder().to(device)
+        if args.load_pretrained:
+            model.load_state_dict(torch.load(f'cifar10_mae_weights_2.pth'))
     else:
         raise ValueError(f'Unknown model: {args.model}')
 
@@ -130,4 +135,4 @@ if __name__ == '__main__':
         print(f'Test loss: {test_loss/len(testloader):.4f}')
         scheduler.step(test_loss / len(testloader))
     
-    torch.save(model.state_dict(), f'cifar10_{args.model}_weights.pth')
+    torch.save(model.state_dict(), f'cifar10_{args.model}_weights_30_epochs.pth')
