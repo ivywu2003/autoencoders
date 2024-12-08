@@ -93,6 +93,7 @@ def visualize_reconstruction(model, dataloader, device, mask_ratio=0.75, num_ima
         axes[3, i].axis("off")
 
     plt.show()
+    return augmented
 
 
 visualize_reconstruction(mae_model, test_loader, device)
