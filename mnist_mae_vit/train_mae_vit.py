@@ -1,3 +1,4 @@
+import tqdm
 from mae_vit import MaskedAutoencoderViTForMNIST
 
 import torch
@@ -44,7 +45,7 @@ def train_one_epoch(model, dataloader, optimizer, epoch, device, mask_ratio=0.75
         images = images.to(device)
 
         # Forward pass
-        loss, _, _ = model(images, mask_ratio=mask_ratio)
+        loss, _, _, _ = model(images, mask_ratio=mask_ratio)
 
         # Backward pass
         optimizer.zero_grad()
@@ -54,7 +55,7 @@ def train_one_epoch(model, dataloader, optimizer, epoch, device, mask_ratio=0.75
         total_loss += loss.item()
     
     avg_loss = total_loss / len(dataloader)
-    print(f"Epoch {epoch + 1}, Loss: {avg_loss:.4f}")
+    # print(f"Epoch {epoch + 1}, Loss: {avg_loss:.4f}")
     return avg_loss
 
 # --------------------------
@@ -63,5 +64,19 @@ def train_one_epoch(model, dataloader, optimizer, epoch, device, mask_ratio=0.75
 n_epochs = 20
 for epoch in range(n_epochs):
     train_loss = train_one_epoch(model, train_loader, optimizer, epoch, device)
-torch.save(model.state_dict(), 'mae_weights_vit_patch2_20epochs.pth')  # Save MAE weights
+    print(f'Train loss: {train_loss:.4f}')
+    with torch.no_grad():
+        test_loss = 0.0
+        # pbar = tqdm(test_loader, desc='Testing')
+        for images, _ in test_loader:
+            images = images.to(device)
+            loss, _, _, _ = model(images)
+            test_loss += loss.item()
+            # pbar.set_postfix({'loss': f'{test_loss/len(test_loader):.4f}'})
+    
+    print(f'Test loss: {test_loss/len(test_loader):.4f}')
+n_epochs = 20
+# for epoch in range(n_epochs):
+#     train_loss = train_one_epoch(model, train_loader, optimizer, epoch, device)
+torch.save(model.state_dict(), 'mae_weights.pth')  # Save MAE weights
 
