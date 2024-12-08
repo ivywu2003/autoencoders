@@ -11,7 +11,7 @@ from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
-from cifar10_models import CIFAR10Autoencoder, CIFAR10MaskedAutoencoder
+from cifar10_models import CIFAR10Autoencoder, CustomCIFAR10MaskedAutoencoder
 from sklearn.decomposition import PCA
 
 
@@ -31,10 +31,10 @@ def visualize_latent_space_with_cluster_radius(mae_model, dataloader, device, nu
             images = images.to(device)
             lbls = lbls.numpy()
             
-            latent, _, _, _ = mae_model.forward_encoder(images, mask_ratio=0.75, return_attention = True)  # Assuming MAE has a forward_encoder method
+            latent, _, = mae_model.encoder(images)  # Assuming MAE has a forward_encoder method
+            latent = torch.swapaxes(latent, 0,1)
+            latent = latent[:, 1:, :]  # Ignore [CLS] token, shape: [B, num_patches, embed_dim]
             print("latent shape", latent.shape)
-            latent = latent[:, 0, :]  # Ignore [CLS] token, shape: [B, num_patches, embed_dim]
-            
             latent = latent.view(latent.shape[0], -1).cpu().numpy()
             for img, lbl in zip(latent, lbls):
                 if class_sample_count[lbl] < num_samples_per_class:
@@ -104,8 +104,8 @@ testloader = torch.utils.data.DataLoader(
 print("data loaded")
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-mae_model = model = CIFAR10MaskedAutoencoder().to(device)
-mae_model.load_state_dict(torch.load('cifar10_mae_weights_30_epochs.pth'))  # Load the saved weights
+mae_model = model = CustomCIFAR10MaskedAutoencoder().to(device)
+mae_model.load_state_dict(torch.load('cifar10_mae_weights_10_epochs_custom.pth',  map_location=torch.device('cpu')))  # Load the saved weights
 print("model loaded")
 
 visualize_latent_space_with_cluster_radius(mae_model, testloader, device, num_samples_per_class=100)

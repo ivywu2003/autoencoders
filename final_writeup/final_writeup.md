@@ -46,6 +46,10 @@ The loss function for a MAE compares only the reconstructed (masked) patches aga
 
 As we can see with Fig. x and Fig. x, The MAE generally reconstructs much better. The final loss for training the DAE was around 0.532, whereas the final loss for the MAE was only 0.11 for 20 epochs each. 
 
+Train loss: 0.1216
+Test loss: 0.1194
+
+
 ### Visualization of the Latent Space
 
 Our hypothesis for why the MAE performs better was that the latent space contained more information that helped distinguish the image. In order to test this theory, we decided to visualize the latent space for both the DAE and the MAE.
@@ -78,4 +82,14 @@ These radii were calculated by first finding the cluster center in the T-SNE red
 These numbers and visualizations show that the MAE number classes in general had a much tighter cluster. These results suggest that the MAE outperforms the DAE in large part due to the latent space information. 
 
 ### Visualizing the Attention Maps
+
+![dae heatmaps](Heatmaps/dae_map_4.png)
+*Fig. x: DAE Saliency maps*
+
+![mae heatmaps](Heatmaps/mae_map_4.png)
+*Fig. x: MAE Attention heatmaps*
+
+The DAE saliency map is computed by measuring how sensitive the latent representation of a denoising autoencoder (DAE) is to changes in each pixel of the input image. Gradients are calculated to find out how much each pixel of the input image contributes to the overall latent representation. This is done by "backtracking" from the latent space through the network to the input image. These gradient magnitudes are normalized to a 0–1 range and displayed as a heatmap, where brighter regions indicate pixels that have a greater impact on the latent space.
+
+The MAE attention map is computed by 
 

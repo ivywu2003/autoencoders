@@ -67,16 +67,12 @@ for epoch in range(n_epochs):
     print(f'Train loss: {train_loss:.4f}')
     with torch.no_grad():
         test_loss = 0.0
-        # pbar = tqdm(test_loader, desc='Testing')
         for images, _ in test_loader:
             images = images.to(device)
             loss, _, _, _ = model(images)
             test_loss += loss.item()
-            # pbar.set_postfix({'loss': f'{test_loss/len(test_loader):.4f}'})
     
     print(f'Test loss: {test_loss/len(test_loader):.4f}')
 n_epochs = 20
-# for epoch in range(n_epochs):
-#     train_loss = train_one_epoch(model, train_loader, optimizer, epoch, device)
 torch.save(model.state_dict(), 'mae_weights.pth')  # Save MAE weights
 

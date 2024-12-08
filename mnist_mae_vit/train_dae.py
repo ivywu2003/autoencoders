@@ -5,6 +5,39 @@ import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.nn.functional as F
 from dae import ConvDenoiser
+
+def train_one_epoch(model, dataloader, optimizer, criterion, epoch, device, mask_ratio=0.75):
+    model.train()
+    train_loss = 0
+    for data in dataloader:
+        images, _ = data
+
+        ## add random noise to the input images
+        noisy_imgs = images + noise_factor * torch.randn(*images.shape)
+        # Clip the images to be between 0 and 1
+        noisy_imgs = np.clip(noisy_imgs, 0., 1.)
+
+        # clear the gradients of all optimized variables
+        optimizer.zero_grad()
+        ## forward pass: compute predicted outputs by passing *noisy* images to the model
+        outputs, latent = dae_model(noisy_imgs)
+        # calculate the loss
+        # the "target" is still the original, not-noisy images
+        loss = criterion(outputs, images)
+        # backward pass: compute gradient of the loss with respect to model parameters
+        loss.backward()
+        # perform a single optimization step (parameter update)
+        optimizer.step()
+        # update running training loss
+        train_loss += loss.item()*images.size(0)
+    
+    avg_loss = train_loss / len(dataloader)
+    print(f"Epoch {epoch + 1}, Loss: {avg_loss:.4f}")
+    return avg_loss
+
+
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # convert data to torch.FloatTensor
 transform = transforms.ToTensor()
 
@@ -39,39 +72,14 @@ noise_factor=0.5
 
 for epoch in range(1, n_epochs+1):
     # monitor training loss
-    train_loss = 0.0
-
-    ###################
-    # train the model #
-    ###################
-    for data in train_loader:
-        # _ stands in for labels, here
-        # no need to flatten images
-        images, _ = data
-
-        ## add random noise to the input images
-        noisy_imgs = images + noise_factor * torch.randn(*images.shape)
-        # Clip the images to be between 0 and 1
-        noisy_imgs = np.clip(noisy_imgs, 0., 1.)
-
-        # clear the gradients of all optimized variables
-        optimizer.zero_grad()
-        ## forward pass: compute predicted outputs by passing *noisy* images to the model
-        outputs, latent = dae_model(noisy_imgs)
-        # calculate the loss
-        # the "target" is still the original, not-noisy images
-        loss = criterion(outputs, images)
-        # backward pass: compute gradient of the loss with respect to model parameters
-        loss.backward()
-        # perform a single optimization step (parameter update)
-        optimizer.step()
-        # update running training loss
-        train_loss += loss.item()*images.size(0)
-
-    # print avg training statistics
-    train_loss = train_loss/len(train_loader)
-    print('Epoch: {} \tTraining Loss: {:.6f}'.format(
-        epoch,
-        train_loss
-        ))
-torch.save(dae_model.state_dict(), 'dae_weights.pth')  # Save DAE weights
+    train_one_epoch(dae_model, train_loader, optimizer, criterion, epoch, device)
+    with torch.no_grad():
+        test_loss = 0.0
+        for images, _ in test_loader:
+            images = images.to(device)
+            outputs, _ = dae_model(images)
+            loss = criterion(outputs, images)
+            test_loss += loss.item()*images.size(0)
+    
+    print(f'Test loss: {test_loss/len(test_loader):.4f}')
+torch.save(dae_model.state_dict(), 'dae_weights_20_epochs.pth')  # Save DAE weights

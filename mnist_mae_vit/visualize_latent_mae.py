@@ -30,8 +30,9 @@ def visualize_latent_space_with_cluster_radius(mae_model, dataloader, device, nu
             
             latent, _, _, _ = mae_model.forward_encoder(images, mask_ratio=0.75, return_attention = True)  # Assuming MAE has a forward_encoder method
             # latent = latent[:, 1:, :]  # Ignore [CLS] token, shape: [B, num_patches, embed_dim]
-            
+            print(latent.shape)
             latent = latent.view(latent.shape[0], -1).cpu().numpy()
+            print("latent shape", latent.shape)
             for img, lbl in zip(latent, lbls):
                 if class_sample_count[lbl] < num_samples_per_class:
                     # print("img shape", img.shape)
