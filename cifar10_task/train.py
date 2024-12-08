@@ -14,18 +14,27 @@ def train_autoencoder(model, dataloader, optimizer, criterion, device):
     model.train()
     train_loss = 0.0
     pbar = tqdm(dataloader, desc='Training AE')
+    
+    # Define normalization constants
+    mean = torch.tensor([0.4914, 0.4822, 0.4465]).view(1, 3, 1, 1).to(device)
+    std = torch.tensor([0.2023, 0.1994, 0.2010]).view(1, 3, 1, 1).to(device)
+    
     for images, _ in pbar:
         images = images.to(device)
-
+        
         # Forward pass
         outputs = model(images)
-
+        
+        # Denormalize both images and outputs for loss calculation
+        images_denorm = images * std + mean
+        outputs_denorm = outputs * std + mean
+        
         # Backward pass
         optimizer.zero_grad()
-        loss = criterion(outputs, images)
+        loss = criterion(outputs_denorm, images_denorm)
         loss.backward()
         optimizer.step()
-
+        
         train_loss += loss.item()
         pbar.set_postfix({'loss': f'{loss.item():.4f}'})
     
@@ -93,7 +102,9 @@ if __name__ == '__main__':
     else:
         raise ValueError(f'Unknown model: {args.model}')
 
-    optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
+    # Reduce learning rate and add scheduler
+    optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-5)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
     trainloader, testloader = get_data_loaders()
 
     for epoch in range(args.epochs):
@@ -117,5 +128,6 @@ if __name__ == '__main__':
                 pbar.set_postfix({'loss': f'{test_loss/len(testloader):.4f}'})
         
         print(f'Test loss: {test_loss/len(testloader):.4f}')
+        scheduler.step(test_loss / len(testloader))
     
     torch.save(model.state_dict(), f'cifar10_{args.model}_weights.pth')

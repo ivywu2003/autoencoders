@@ -16,28 +16,30 @@ class CIFAR10Autoencoder(nn.Module):
     def __init__(self, latent_dim=64, norm_pix_loss=False):
         super().__init__()
         self.encoder = nn.Sequential(
-            nn.Conv2d(3, 32, 4, stride=2, padding=1),  # 32x32 -> 16x16
+            nn.Conv2d(3, 32, 3, stride=2, padding=1),  # 32x32 -> 16x16
+            nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.Conv2d(32, 64, 4, stride=2, padding=1),  # 16x16 -> 8x8
+            nn.Conv2d(32, 64, 3, stride=2, padding=1),  # 16x16 -> 8x8
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Conv2d(64, 128, 4, stride=2, padding=1),  # 8x8 -> 4x4
+            nn.Conv2d(64, 128, 3, stride=2, padding=1),  # 8x8 -> 4x4
+            nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.Conv2d(128, 256, 4, stride=2, padding=1),  # 4x4 -> 2x2
-            nn.ReLU(),
-            nn.Conv2d(256, latent_dim, 2, stride=2, padding=0),  # 2x2 -> 1x1
-            nn.ReLU()
+            nn.Conv2d(128, latent_dim, 4, stride=1, padding=0),  # 4x4 -> 1x1
+            nn.BatchNorm2d(latent_dim)
         )
         
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(latent_dim, 256, 2, stride=2, padding=0),  # 1x1 -> 2x2
+            nn.ConvTranspose2d(latent_dim, 128, 4, stride=1, padding=0),  # 1x1 -> 4x4
+            nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1),  # 2x2 -> 4x4
+            nn.ConvTranspose2d(128, 64, 3, stride=2, padding=1, output_padding=1),  # 4x4 -> 8x8
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1),  # 4x4 -> 8x8
+            nn.ConvTranspose2d(64, 32, 3, stride=2, padding=1, output_padding=1),  # 8x8 -> 16x16
+            nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1),  # 8x8 -> 16x16
-            nn.ReLU(),
-            nn.ConvTranspose2d(32, 3, 4, stride=2, padding=1),  # 16x16 -> 32x32
+            nn.ConvTranspose2d(32, 3, 3, stride=2, padding=1, output_padding=1),  # 16x16 -> 32x32
             nn.Sigmoid()
         )
     
