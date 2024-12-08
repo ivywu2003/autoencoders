@@ -35,7 +35,7 @@ def visualize_reconstructions(model, dataloader, device, model_type='ae', num_im
             reconstructed = denormalize(reconstructed, device)
     
     # Plot original and reconstructed images
-    fig, axes = plt.subplots(2, num_images, figsize=(2*num_images, 4))
+    fig, axes = plt.subplots(3, num_images, figsize=(2*num_images, 6))
     
     for i in range(num_images):
         # Original images
@@ -44,11 +44,18 @@ def visualize_reconstructions(model, dataloader, device, model_type='ae', num_im
         axes[0, i].axis('off')
         if i == 0:
             axes[0, i].set_title('Original', pad=10)
+
+        # Masked input
+        masked_img = images[i].cpu().permute(1, 2, 0).clamp(0, 1) * (1 - mask[i].cpu().permute(1, 2, 0).clamp(0, 1))
+        axes[1, i].imshow(masked_img)
+        axes[1, i].axis('off')
+        if i == 0:
+            axes[1, i].set_title('Masked Input', pad=10)
         
         # Reconstructed images
         recon_img = reconstructed[i].cpu().permute(1, 2, 0).clamp(0, 1)
-        axes[1, i].imshow(recon_img)
-        axes[1, i].axis('off')
+        axes[2, i].imshow(recon_img)
+        axes[2, i].axis('off')
         if i == 0:
             axes[1, i].set_title('Reconstructed', pad=10)
     
@@ -70,7 +77,7 @@ if __name__ == '__main__':
     else:
         model = CustomCIFAR10MaskedAutoencoder().to(device)
     
-    model.load_state_dict(torch.load(f'cifar10_{args.model}_weights_10_epochs_custom.pth', map_location=torch.device('cpu')))
+    model.load_state_dict(torch.load(f'cifar10_{args.model}_weights_20_epochs_custom.pth', map_location=torch.device('cpu')))
     model.eval()
     
     # Prepare data
