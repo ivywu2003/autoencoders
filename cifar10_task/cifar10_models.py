@@ -80,7 +80,7 @@ class CIFAR10MaskedAutoencoder(MaskedAutoencoderViT):
             return x, mask, ids_restore, attn_weights_all
         return x, mask, ids_restore
 
-    def forward(self, imgs, mask_ratio=0.75, return_latent=False, return_attention=False):
+    def forward(self, imgs, mask_ratio=0.75, return_latent=False, return_attention=True):
         if return_attention:
             latent, mask, ids_restore, attn_weights_all = self.forward_encoder(imgs, mask_ratio, True)
         else:
