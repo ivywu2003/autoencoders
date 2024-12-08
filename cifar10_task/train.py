@@ -13,7 +13,8 @@ from cifar10_models import CIFAR10Autoencoder, CIFAR10MaskedAutoencoder
 def train_autoencoder(model, dataloader, optimizer, criterion, device):
     model.train()
     train_loss = 0.0
-    for images, _ in dataloader:
+    pbar = tqdm(dataloader, desc='Training AE')
+    for images, _ in pbar:
         images = images.to(device)
 
         # Forward pass
@@ -26,12 +27,15 @@ def train_autoencoder(model, dataloader, optimizer, criterion, device):
         optimizer.step()
 
         train_loss += loss.item()
-    return train_loss
+        pbar.set_postfix({'loss': f'{loss.item():.4f}'})
+    
+    return train_loss / len(dataloader)
 
 def train_masked_autoencoder(model, dataloader, optimizer, device):
     model.train()
     train_loss = 0.0
-    for images, _ in dataloader:
+    pbar = tqdm(dataloader, desc='Training MAE')
+    for images, _ in pbar:
         images = images.to(device)
 
         # Forward pass
@@ -40,9 +44,12 @@ def train_masked_autoencoder(model, dataloader, optimizer, device):
         # Backward pass
         optimizer.zero_grad()
         loss.backward()
-        train_loss += loss.item()
+        optimizer.step()
         
-    return train_loss
+        train_loss += loss.item()
+        pbar.set_postfix({'loss': f'{loss.item():.4f}'})
+        
+    return train_loss / len(dataloader)
 
 def get_data_loaders(batch_size=64):
     transform_train = transforms.Compose([
@@ -98,7 +105,8 @@ if __name__ == '__main__':
         print(f'Train loss: {train_loss:.4f}')
         with torch.no_grad():
             test_loss = 0.0
-            for images, _ in testloader:
+            pbar = tqdm(testloader, desc='Testing')
+            for images, _ in pbar:
                 images = images.to(device)
                 if args.model == 'ae':
                     outputs = model(images)
@@ -106,6 +114,8 @@ if __name__ == '__main__':
                 elif args.model == 'mae':
                     loss, _, _ = model(images)
                     test_loss += loss.item()
-            print(f'Test loss: {test_loss:.4f}')
+                pbar.set_postfix({'loss': f'{test_loss/len(testloader):.4f}'})
+        
+        print(f'Test loss: {test_loss/len(testloader):.4f}')
     
     torch.save(model.state_dict(), f'cifar10_{args.model}_weights.pth')
