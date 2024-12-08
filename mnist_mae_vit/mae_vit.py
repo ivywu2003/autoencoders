@@ -71,8 +71,8 @@ class MaskedAutoencoderViTForMNIST(MaskedAutoencoderViT):
         if return_attention:
             return x, mask, ids_restore, attn_weights_all
         return x, mask, ids_restore
-    def forward(self, imgs, mask_ratio=0.75):
-        latent, mask, ids_restore, attn = self.forward_encoder(imgs, mask_ratio, return_attention = True)
+    def forward(self, imgs, mask_ratio=0.75, return_attention = True):
+        latent, mask, ids_restore, attn = self.forward_encoder(imgs, mask_ratio, return_attention = return_attention)
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
         loss = self.forward_loss(imgs, pred, mask)
         return loss, pred, mask, attn

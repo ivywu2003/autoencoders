@@ -1,5 +1,7 @@
 data/
 mnist_mae_vit/data
 __pycache__/
+**/data
+**/__pycache__
 
 venv/

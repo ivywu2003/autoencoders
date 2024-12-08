@@ -68,7 +68,7 @@ def visualize_reconstruction(model, dataloader, device, mask_ratio=0.75, num_ima
     augmented = ((1-mask)*images) + (mask*reconstructed)
     print(augmented.shape)
     # Plot original, masked, and reconstructed images
-    fig, axes = plt.subplots(4, num_images, figsize=(15, 7))
+    fig, axes = plt.subplots(3, num_images, figsize=(15, 7))
     masked_image = images*(1-mask)
     for i in range(num_images):
         # Original Image
@@ -79,20 +79,21 @@ def visualize_reconstruction(model, dataloader, device, mask_ratio=0.75, num_ima
         # Masked Image: overlay mask on original image
         axes[1, i].imshow(masked_image[i, 0], cmap="gray")
         # axes[1, i].imshow(mask_overlay[i, 0], cmap="gray", alpha=0.5)  # Mask overlay with transparency
-        axes[1, i].set_title("Masked")
+        axes[1, i].set_title("Input")
         axes[1, i].axis("off")
 
         # Reconstructed Image
-        axes[2, i].imshow(reconstructed[i, 0], cmap="gray")
-        axes[2, i].set_title("Reconstructed")
-        axes[2, i].axis("off")
+        # axes[2, i].imshow(reconstructed[i, 0], cmap="gray")
+        # axes[2, i].set_title("Reconstructed")
+        # axes[2, i].axis("off")
 
         # Reconstructed Image
-        axes[3, i].imshow(augmented[i, 0], cmap="gray")
-        axes[3, i].set_title("Augmented")
-        axes[3, i].axis("off")
+        axes[2, i].imshow(augmented[i, 0], cmap="gray")
+        axes[2, i].set_title("Reconstructed + visible")
+        axes[2, i].axis("off")
 
     plt.show()
+    return augmented
 
 
 visualize_reconstruction(mae_model, test_loader, device)
