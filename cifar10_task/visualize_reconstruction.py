@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 from torchvision import transforms
 from cifar10_models import CIFAR10Autoencoder, CIFAR10MaskedAutoencoder
 
-def denormalize(x):
+def denormalize(x, device):
     """Denormalize CIFAR10 images"""
-    mean = torch.tensor([0.4914, 0.4822, 0.4465]).view(3, 1, 1)
-    std = torch.tensor([0.2023, 0.1994, 0.2010]).view(3, 1, 1)
+    mean = torch.tensor([0.4914, 0.4822, 0.4465]).view(3, 1, 1).to(device)
+    std = torch.tensor([0.2023, 0.1994, 0.2010]).view(3, 1, 1).to(device)
     return x * std + mean
 
 def visualize_reconstructions(model, dataloader, device, model_type='ae', num_images=8):
@@ -27,8 +27,8 @@ def visualize_reconstructions(model, dataloader, device, model_type='ae', num_im
             _, reconstructed, _ = model(images)
     
     # Denormalize images
-    images = denormalize(images)
-    reconstructed = denormalize(reconstructed)
+    images = denormalize(images, device)
+    reconstructed = denormalize(reconstructed, device)
     
     # Plot original and reconstructed images
     fig, axes = plt.subplots(2, num_images, figsize=(2*num_images, 4))
