@@ -12,7 +12,7 @@ print(np.__version__)
 
 
 # Function to compute saliency in the latent space
-def compute_latent_saliency(dae_model, input_image, original_image):
+def compute_latent_saliency(dae_model, input_image, original_image, label):
     noisy_img = input_image
     input_image.requires_grad_()  # Ensure input image supports gradient computation
 
@@ -25,6 +25,9 @@ def compute_latent_saliency(dae_model, input_image, original_image):
     # Get gradients w.r.t. the input image
     saliency_map = input_image.grad.data.abs().squeeze().cpu().numpy()
 
+    saliency_map_min = saliency_map.min()
+    saliency_map_max = saliency_map.max()
+    saliency_map_normalized = (saliency_map - saliency_map_min) / (saliency_map_max - saliency_map_min)
 
     fig, ax = plt.subplots(1, 4, figsize=(12, 5))
     ax[0].imshow(original_image.detach().numpy().squeeze().squeeze(), cmap='gray')
@@ -39,10 +42,13 @@ def compute_latent_saliency(dae_model, input_image, original_image):
     ax[2].set_title("Reconstruction")
     ax[2].axis("off")
 
-    ax[3].imshow(saliency_map, cmap='hot')
+    saliency_heatmap = ax[3].imshow(saliency_map_normalized, cmap='hot')
     ax[3].set_title('Saliency in Latent Space')
     ax[3].axis('off')
-
+    
+    cbar = fig.colorbar(saliency_heatmap, ax=ax[3], orientation="vertical", fraction=0.046, pad=0.04)
+    cbar.set_label("Saliency Intensity", rotation=270, labelpad=15)
+    plt.savefig(f"./final graphics/dae_map_{label}.png")
     plt.show()
 
 from matplotlib import pyplot as plt
@@ -96,18 +102,30 @@ output = output.view(batch_size, 1, 28, 28)
 output = output.detach().numpy()
 
 # plot the first ten input images and then reconstructed images
-fig, axes = plt.subplots(nrows=2, ncols=10, sharex=True, sharey=True, figsize=(25,4))
+num_images = 5
+fig, axes = plt.subplots(3, num_images, figsize=(15, 7))
 
-# input images on top row, reconstructions on bottom
-for noisy_imgs, row in zip([noisy_imgs, output], axes):
-    for img, ax in zip(noisy_imgs, row):
-        ax.imshow(np.squeeze(img), cmap='gray')
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
+for i in range(num_images):
+    # Original Image
+    axes[0, i].imshow(images[i, 0], cmap="gray")
+    axes[0, i].set_title("Original")
+    axes[0, i].axis("off")
+    # Masked Image: overlay mask on original image
+    axes[1, i].imshow(noisy_imgs[i, 0], cmap="gray")
+    # axes[1, i].imshow(mask_overlay[i, 0], cmap="gray", alpha=0.5)  # Mask overlay with transparency
+    axes[1, i].set_title("Input")
+    axes[1, i].axis("off")
+    # Reconstructed Image
+    axes[2, i].imshow(output[i, 0], cmap="gray")
+    axes[2, i].set_title("Reconstructed")
+    axes[2, i].axis("off")
 plt.show()
 
 
 noisy_imgs = images + noise_factor * torch.randn(*images.shape)
 noisy_imgs = np.clip(noisy_imgs, 0., 1.)
 # Clip the images to be between 0 and 1
-compute_latent_saliency(dae_model, noisy_imgs[1], images[1])
+num_images = 5 
+for i in range(num_images):  
+    compute_latent_saliency(dae_model, noisy_imgs[i], images[i], labels[i])
+    

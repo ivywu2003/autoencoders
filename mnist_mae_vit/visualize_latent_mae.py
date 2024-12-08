@@ -30,10 +30,11 @@ def visualize_latent_space_with_cluster_radius(mae_model, dataloader, device, nu
             
             latent, _, _, _ = mae_model.forward_encoder(images, mask_ratio=0.75, return_attention = True)  # Assuming MAE has a forward_encoder method
             latent = latent[:, 1:, :]  # Ignore [CLS] token, shape: [B, num_patches, embed_dim]
-            latent = latent.mean(dim=1).cpu().numpy()  # Pool across patches to get a single vector per image
             
+            latent = latent.view(latent.shape[0], -1).cpu().numpy()
             for img, lbl in zip(latent, lbls):
                 if class_sample_count[lbl] < num_samples_per_class:
+                    # print("img shape", img.shape)
                     latent_vectors.append(img)
                     labels.append(lbl)
                     class_sample_count[lbl] += 1
@@ -52,6 +53,7 @@ def visualize_latent_space_with_cluster_radius(mae_model, dataloader, device, nu
     cluster_radii_original = {}
     for label, points in class_points_original.items():
         points = np.array(points)
+        print("mae point shpae", points.shape)
         cluster_center = points.mean(axis=0)
         distances = np.linalg.norm(points - cluster_center, axis=1)
         cluster_radius = distances.mean()  # Average distance to center
@@ -106,6 +108,6 @@ mae_model = MaskedAutoencoderViTForMNIST(
 mae_model.load_state_dict(torch.load('mae_weights_vit_patch2_20epochs.pth'))  # Load the saved weights
 print("model loaded")
 
-visualize_latent_space_with_cluster_radius(mae_model, test_loader, device, num_samples_per_class=50)
+visualize_latent_space_with_cluster_radius(mae_model, test_loader, device, num_samples_per_class=100)
 
 

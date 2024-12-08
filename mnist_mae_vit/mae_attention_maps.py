@@ -39,7 +39,7 @@ def unpatchify(x, patch_size):
     imgs = x.reshape(shape=(x.shape[0], 1, h * patch_size, h * patch_size))
     return imgs
 
-def visualize_attention_heatmaps(mae_model, dataloader, device, img_size, patch_size, num_images=5):
+def visualize_attention_heatmaps(mae_model, dataloader, device, img_size, patch_size, num_images=5, color_channels = 1):
     """
     Visualize attention heatmaps from the MAE for masked images.
     
@@ -56,11 +56,15 @@ def visualize_attention_heatmaps(mae_model, dataloader, device, img_size, patch_
         images, labels = next(iter(dataloader))
         images = images[:num_images].to(device)
         labels = labels[:num_images].to(device)
-        _, _, original_mask, attention_weights = mae_model(images.float(), return_attention=True)
-        
+        _, pred, original_mask, attention_weights = mae_model(images.float(), return_attention=True)
+        reconstructed = mae_model.unpatchify(pred)
+        reconstructed = torch.einsum('nchw->nhwc', reconstructed).detach().cpu() 
+        reconstructed = reconstructed.reshape((num_images, color_channels, *img_size))
+
         mask = original_mask.unsqueeze(-1).repeat(1, 1, patch_size**2)  # (N, H*W, p*p*C)
         mask = unpatchify(mask, patch_size)
         masked_images = images * (1 - mask)
+        augmented = ((1-mask)*images) + (mask*reconstructed)
         attention_weights = np.maximum.reduce(attention_weights, axis = 0)
         attention_weights = attention_weights.mean(axis=1) # Aggregate across heads
         
@@ -90,7 +94,7 @@ def visualize_attention_heatmaps(mae_model, dataloader, device, img_size, patch_
             full_attention_map = full_attention_map.reshape(img_size)
             
             # Plotting
-            fig, ax = plt.subplots(1, 3, figsize=(12, 4))
+            fig, ax = plt.subplots(1, 4, figsize=(12, 4))
             ax[0].imshow(original_image, cmap="gray")
             ax[0].set_title("Original Image")
             ax[0].axis("off")
@@ -98,15 +102,19 @@ def visualize_attention_heatmaps(mae_model, dataloader, device, img_size, patch_
             ax[1].imshow(masked_image, cmap="gray")
             ax[1].set_title("Masked Image")
             ax[1].axis("off")
-            
-            ax[2].imshow(original_image, cmap="gray")
-            attention_heatmap = ax[2].imshow(full_attention_map, cmap="hot", alpha=0.7)
-            ax[2].set_title("Attention Heatmap")
+
+            ax[2].imshow(augmented[i,0], cmap="gray")
+            ax[2].set_title("Reconstruction")
             ax[2].axis("off")
             
-            cbar = fig.colorbar(attention_heatmap, ax=ax[2], orientation="vertical", fraction=0.046, pad=0.04)
-            cbar.set_label("Attention Intensity", rotation=270, labelpad=15)
+            ax[3].imshow(original_image, cmap="gray")
+            attention_heatmap = ax[3].imshow(full_attention_map, cmap="hot", alpha=0.7)
+            ax[3].set_title("Attention Heatmap")
+            ax[3].axis("off")
             
+            cbar = fig.colorbar(attention_heatmap, ax=ax[3], orientation="vertical", fraction=0.046, pad=0.04)
+            cbar.set_label("Attention Intensity", rotation=270, labelpad=15)
+            plt.savefig(f"./final graphics/mae_map_{labels[i]}.png")
             plt.show()
 
 # Example usage:

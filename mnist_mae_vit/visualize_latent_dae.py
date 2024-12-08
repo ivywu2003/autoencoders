@@ -67,6 +67,7 @@ def visualize_latent_space_dae_with_cluster_radius(dae_model, dataloader, device
     cluster_radii_original = {}
     for label, points in class_points_original.items():
         points = np.array(points)
+        print("Dae points shape", points.shape)
         cluster_center = points.mean(axis=0)
         distances = np.linalg.norm(points - cluster_center, axis=1)
         cluster_radius = distances.mean()  # Average distance to center
@@ -124,4 +125,4 @@ dae_model = ConvDenoiser()  # Initialize the model
 dae_model.load_state_dict(torch.load('dae_weights.pth')) 
 print("model loaded")
 
-visualize_latent_space_dae_with_cluster_radius(dae_model, test_loader, device, method='tsne', num_samples_per_class=50)
+visualize_latent_space_dae_with_cluster_radius(dae_model, test_loader, device, method='tsne', num_samples_per_class=100)
