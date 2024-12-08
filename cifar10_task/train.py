@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import math
 
-from cifar10_models import CIFAR10Autoencoder, CustomCIFAR10MaskedAutoencoder,CIFAR10MaskedAutoencoder
+from cifar10_models import CIFAR10Autoencoder, CustomCIFAR10MaskedAutoencoder
 
 def train_autoencoder(model, dataloader, optimizer, criterion, device):
     model.train()

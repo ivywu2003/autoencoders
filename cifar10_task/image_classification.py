@@ -13,7 +13,7 @@ from tqdm import tqdm
 from einops import repeat, rearrange
 from einops.layers.torch import Rearrange
 
-from cifar10_models import CIFAR10Autoencoder, CIFAR10MaskedAutoencoder, CustomCIFAR10MaskedAutoencoder, MAEEncoder
+from cifar10_models import CIFAR10Autoencoder, CustomCIFAR10MaskedAutoencoder, MAEEncoder
 
 # CIFAR-10 classes
 CLASSES = ('plane', 'car', 'bird', 'cat', 'deer',
@@ -167,57 +167,78 @@ def train_classifier(model, trainloader, testloader, num_epochs=100,
     return model
 
 def train_vit_classifier(model, device, train_dataloader, val_dataloader, epochs):
-    loss_fn = torch.nn.CrossEntropyLoss()
-    acc_fn = lambda logit, label: torch.mean((logit.argmax(dim=-1) == label).float())
-
-    optim = torch.optim.AdamW(model.parameters(), lr=1e-4 * 128 / 256, betas=(0.9, 0.999), weight_decay=1e-5)
-    lr_func = lambda epoch: min((epoch + 1) / (epochs / 10 + 1e-8), 0.5 * (math.cos(epochs / 10* math.pi) + 1))
-    lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optim, lr_lambda=lr_func, verbose=True)
-
-    best_val_acc = 0
-    step_count = 0
-    optim.zero_grad()
-    for e in range(epochs):
+    """Train a ViT classifier"""
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.05)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+    
+    best_val_acc = 0.0
+    for epoch in range(epochs):
+        # Training phase
         model.train()
-        losses = []
-        acces = []
-        for img, label in tqdm(iter(train_dataloader)):
-            step_count += 1
-            img = img.to(device)
-            label = label.to(device)
-            logits = model(img)
-            loss = loss_fn(logits, label)
-            acc = acc_fn(logits, label)
+        train_loss = 0.0
+        train_correct = 0
+        train_total = 0
+        
+        train_pbar = tqdm(train_dataloader, desc=f'Epoch {epoch+1}/{epochs} [Train]')
+        for images, labels in train_pbar:
+            images, labels = images.to(device), labels.to(device)
+            
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = criterion(outputs, labels)
             loss.backward()
-            optim.step()
-            optim.zero_grad()
-            losses.append(loss.item())
-            acces.append(acc.item())
-        lr_scheduler.step()
-        avg_train_loss = sum(losses) / len(losses)
-        avg_train_acc = sum(acces) / len(acces)
-        print(f'In epoch {e}, average training loss is {avg_train_loss}, average training acc is {avg_train_acc}.')
-
+            optimizer.step()
+            
+            train_loss += loss.item()
+            _, predicted = outputs.max(1)
+            train_total += labels.size(0)
+            train_correct += predicted.eq(labels).sum().item()
+            
+            train_pbar.set_postfix({
+                'loss': f'{train_loss/len(train_pbar):.3f}',
+                'acc': f'{100.*train_correct/train_total:.2f}%'
+            })
+        
+        # Validation phase
         model.eval()
+        val_loss = 0.0
+        val_correct = 0
+        val_total = 0
+        
         with torch.no_grad():
-            losses = []
-            acces = []
-            for img, label in tqdm(iter(val_dataloader)):
-                img = img.to(device)
-                label = label.to(device)
-                logits = model(img)
-                loss = loss_fn(logits, label)
-                acc = acc_fn(logits, label)
-                losses.append(loss.item())
-                acces.append(acc.item())
-            avg_val_loss = sum(losses) / len(losses)
-            avg_val_acc = sum(acces) / len(acces)
-            print(f'In epoch {e}, average validation loss is {avg_val_loss}, average validation acc is {avg_val_acc}.')  
-
-        if avg_val_acc > best_val_acc:
-            best_val_acc = avg_val_acc
-            print(f'saving best model with acc {best_val_acc} at {e} epoch!')       
-            torch.save(model, 'cifar10_classifier_mae_custom.pth')
+            val_pbar = tqdm(val_dataloader, desc=f'Epoch {epoch+1}/{epochs} [Val]')
+            for images, labels in val_pbar:
+                images, labels = images.to(device), labels.to(device)
+                
+                outputs = model(images)
+                loss = criterion(outputs, labels)
+                
+                val_loss += loss.item()
+                _, predicted = outputs.max(1)
+                val_total += labels.size(0)
+                val_correct += predicted.eq(labels).sum().item()
+                
+                val_pbar.set_postfix({
+                    'loss': f'{val_loss/len(val_pbar):.3f}',
+                    'acc': f'{100.*val_correct/val_total:.2f}%'
+                })
+        
+        val_acc = 100. * val_correct / val_total
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            print(f'New best validation accuracy: {best_val_acc:.2f}%')
+            torch.save(model.state_dict(), 'cifar10_classifier_mae_custom.pth')
+        
+        scheduler.step()
+        
+        # Print epoch summary
+        print(f'Epoch {epoch+1}/{epochs}:')
+        print(f'Train Loss: {train_loss/len(train_dataloader):.3f}, Train Acc: {100.*train_correct/train_total:.2f}%')
+        print(f'Val Loss: {val_loss/len(val_dataloader):.3f}, Val Acc: {100.*val_correct/val_total:.2f}%')
+        print('-' * 60)
+    
+    return model
 
 if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -226,7 +247,6 @@ if __name__ == '__main__':
     parser.add_argument('--model', type=str, choices=['ae', 'mae'], default='ae')
     parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--load_pretrained', action=argparse.BooleanOptionalAction)
-    parser.add_argument('--freeze_encoder', action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
 
     # Load the desired encoder model
@@ -234,21 +254,13 @@ if __name__ == '__main__':
         enc_model = CIFAR10Autoencoder().to(device)
         enc_model.load_state_dict(torch.load(f'cifar10_{args.model}_weights_20_epochs.pth'))
         enc_model.eval()
-        if args.freeze_encoder:
-            for param in enc_model.parameters():
-                param.requires_grad = False
         classifier = CIFAR10Classifier(encoder_model=enc_model, encoder_type=args.model).to(device)
         if args.load_pretrained:
             classifier.load_state_dict(torch.load(f'cifar10_classifier_{args.model}.pth'))
     elif args.model == 'mae':
         enc_model = CustomCIFAR10MaskedAutoencoder().to(device)
-        enc_model.load_state_dict(torch.load(f'cifar10_{args.model}_weights_10_epochs_custom.pth', map_location=device))
-        enc_model.eval()
-        enc_model = enc_model.encoder
-        if args.freeze_encoder:
-            for param in enc_model.parameters():
-                param.requires_grad = False
-        classifier = ViT_Classifier(enc_model).to(device)
+        enc_model.load_state_dict(torch.load(f'cifar10_{args.model}_weights_20_epochs_custom.pth', map_location=device))
+        classifier = ViT_Classifier(enc_model.encoder).to(device)
         if args.load_pretrained:
             classifier.load_state_dict(torch.load(f'cifar10_classifier_{args.model}.pth'))
     else:

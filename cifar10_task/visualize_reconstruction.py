@@ -4,7 +4,7 @@ import torch.nn as nn
 import torchvision
 import matplotlib.pyplot as plt
 from torchvision import transforms
-from cifar10_models import CIFAR10Autoencoder, CIFAR10MaskedAutoencoder, CustomCIFAR10MaskedAutoencoder
+from cifar10_models import CIFAR10Autoencoder, CustomCIFAR10MaskedAutoencoder
 
 def denormalize(x, device):
     """Denormalize images"""

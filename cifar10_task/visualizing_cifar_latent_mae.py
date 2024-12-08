@@ -14,8 +14,6 @@ from collections import defaultdict
 from cifar10_models import CIFAR10Autoencoder, CustomCIFAR10MaskedAutoencoder
 from sklearn.decomposition import PCA
 
-
-
 def visualize_latent_space_with_cluster_radius(mae_model, dataloader, device, num_samples_per_class=10):
 
     class_sample_count = defaultdict(int)
