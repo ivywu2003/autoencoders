@@ -1,3 +1,4 @@
+from image_classification import CIFAR10Classifier, ViT_Classifier
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -29,10 +30,11 @@ def visualize_latent_space_with_cluster_radius(mae_model, dataloader, device, nu
             images = images.to(device)
             lbls = lbls.numpy()
             
-            latent, _, = mae_model.encoder(images)  # Assuming MAE has a forward_encoder method
+            latent = mae_model.forward_with_features(images)  # Assuming MAE has a forward_encoder method
             latent = torch.swapaxes(latent, 0,1)
-            latent = latent[:, 1:, :]  # Ignore [CLS] token, shape: [B, num_patches, embed_dim]
-            print("latent shape", latent.shape)
+            # print("IVY:", latent.shape)
+            latent = latent[:, 0, :]  # Ignore [CLS] token, shape: [B, num_patches, embed_dim]
+            # print("latent shape", latent.shape)
             latent = latent.view(latent.shape[0], -1).cpu().numpy()
             for img, lbl in zip(latent, lbls):
                 if class_sample_count[lbl] < num_samples_per_class:
@@ -49,13 +51,14 @@ def visualize_latent_space_with_cluster_radius(mae_model, dataloader, device, nu
     
     class_points_original = defaultdict(list)
     for point, label in zip(latent_vectors, labels):
+        # print("point shape", point.shape)
         class_points_original[label].append(point)
     
     cluster_centers_original = {}
     cluster_radii_original = {}
     for label, points in class_points_original.items():
         points = np.array(points)
-        print("mae point shpae", points.shape)
+        # print("mae point shpae", points.shape)
         cluster_center = points.mean(axis=0)
         distances = np.linalg.norm(points - cluster_center, axis=1)
         cluster_radius = distances.mean()  # Average distance to center
@@ -76,13 +79,13 @@ def visualize_latent_space_with_cluster_radius(mae_model, dataloader, device, nu
         distances = np.linalg.norm(points - cluster_center, axis=1)
         cluster_radius = distances.mean()
         cluster_radii_reduced[label] = cluster_radius
-        print(f"Class {label} (Reduced Space): Cluster Radius = {cluster_radius:.4f}")
+        # print(f"Class {label} (Reduced Space): Cluster Radius = {cluster_radius:.4f}")
     
 
     plt.figure(figsize=(10, 8))
     scatter = plt.scatter(reduced_vectors[:, 0], reduced_vectors[:, 1], c=labels, cmap='tab10', s=15)
     plt.colorbar(scatter, label='Class Label')
-    plt.title(f"MAE Latent Space Visualization using TSNE")
+    plt.title(f"CIFAR-10 MAE Latent Space Visualization using TSNE")
     plt.xlabel("Dimension 1")
     plt.ylabel("Dimension 2")
     plt.grid(True)
@@ -99,13 +102,17 @@ testset = torchvision.datasets.CIFAR10(
     root='./data', train=False, download=True, transform=transform)
 testloader = torch.utils.data.DataLoader(
     testset, batch_size=8, shuffle=True)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("data loaded")
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-mae_model = model = CustomCIFAR10MaskedAutoencoder().to(device)
-mae_model.load_state_dict(torch.load('cifar10_mae_weights_10_epochs_custom.pth',  map_location=torch.device('cpu')))  # Load the saved weights
+mae_model = CustomCIFAR10MaskedAutoencoder().to(device)
+# enc_model.load_state_dict(torch.load(f'cifar10_{args.model}_weights_20_epochs.pth'))
+mae_model.load_state_dict(torch.load('cifar10_mae_weights_20_epochs_custom.pth', map_location=torch.device('cpu'))) 
+mae_model.eval()
+classifier = ViT_Classifier(encoder=mae_model.encoder).to(device)
+classifier.load_state_dict(torch.load('cifar10_classifier_mae_custom.pth', map_location=torch.device('cpu'))) 
 print("model loaded")
 
-visualize_latent_space_with_cluster_radius(mae_model, testloader, device, num_samples_per_class=100)
+visualize_latent_space_with_cluster_radius(classifier, testloader, device, num_samples_per_class=100)
 
 

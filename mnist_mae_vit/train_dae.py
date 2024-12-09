@@ -29,7 +29,7 @@ def train_one_epoch(model, dataloader, optimizer, criterion, epoch, device, mask
         # perform a single optimization step (parameter update)
         optimizer.step()
         # update running training loss
-        train_loss += loss.item()*images.size(0)
+        train_loss += loss.item()
     
     avg_loss = train_loss / len(dataloader)
     print(f"Epoch {epoch + 1}, Loss: {avg_loss:.4f}")
@@ -79,8 +79,7 @@ for epoch in range(1, n_epochs+1):
             images = images.to(device)
             outputs, _ = dae_model(images)
             loss = criterion(outputs, images)
-            print("images size [0]", images.size(0))
-            test_loss += loss.item()*images.size(0)
+            test_loss += loss.item()
     
     print("Length of test loader", len(test_loader))
     print(f'Test loss: {test_loss/len(test_loader):.4f}')

@@ -116,7 +116,7 @@ def visualize_attention_heatmaps(mae_model, dataloader, device, img_size, patch_
                 ax[idx].set_title(f"Head {idx-3}")
                 ax[idx].axis("off")
                 
-                cbar = fig.colorbar(attention_heatmap, ax=ax[idx], orientation="vertical", fraction=0.046, pad=0.04)
+            cbar = fig.colorbar(attention_heatmap, ax=ax[6], orientation="vertical", fraction=0.046, pad=0.04)
             # cbar.set_label("Attention Intensity", rotation=270, labelpad=15)
             plt.savefig(f"./final graphics/mae_map_head_test_{i}.png")
             plt.show()
