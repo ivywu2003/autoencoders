@@ -79,7 +79,9 @@ for epoch in range(1, n_epochs+1):
             images = images.to(device)
             outputs, _ = dae_model(images)
             loss = criterion(outputs, images)
+            print("images size [0]", images.size(0))
             test_loss += loss.item()*images.size(0)
     
+    print("Length of test loader", len(test_loader))
     print(f'Test loss: {test_loss/len(test_loader):.4f}')
 torch.save(dae_model.state_dict(), 'dae_weights_20_epochs.pth')  # Save DAE weights
