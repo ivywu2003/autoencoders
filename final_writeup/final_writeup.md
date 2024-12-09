@@ -1,8 +1,22 @@
-### Training MAE and DAE MNIST
+# Unmasking the Differences: Masked and Denoising Autoencoders in Image Representation
+
+## Introduction and Motivation
+Autoencoders are designed to learn efficient, compressed representations of input data, extracting their most prominent features to apply to downstream tasks like classification, clustering, and anomaly detection. Autoencoders for vision can be used for image denoising, image compression, image retrieval, and image generation. Applications can even include things like denoising MRI's for better image quality by removing artifacts. Input masking is a technique that increases the generalizability of these autoencoder latent representations, encouraging autoencoders to learn high-level features that better capture the essential patterns within the data and resulting in masked autoencoders (MAEs) that significantly outperform their regular counterparts ~\cite{MAEs}.
+
+
+ Masked autoencoders learn complex reconstructions of the original images, suggesting that the architecture of the MAE has some hidden strengths that are yet to be understood. The original paper concluded with the remark "We hypothesize that this behavior occurs by way of a rich hidden representation inside the MAE. We hope this perspective will inspire future work." This study investigates how and why MAEs offer better feature representation through their latent space representations.
+
+
+## Background and Related work
+
+
+## Overview of Experiments
+
+## Training MAE and DAE MNIST
 
 Our group decided to start our project by training a DAE and MAE on MNIST data since it was small and easy to prototype with. 
 
-#### DAE Structure:
+### DAE Structure:
 We found an existing DAE from [Udacity's Deep learning course](https://github.com/udacity/deep-learning-v2-pytorch/blob/master/autoencoder/denoising-autoencoder/Denoising_Autoencoder_Exercise.ipynb). It has a structure as follows:
 
 The encoder has three convolutional layers with ReLU activations, each followed by max-pooling to reduce the spatial dimensions and extract features.
@@ -13,18 +27,18 @@ Each convolution uses a kernel size of 3×3, and padding ensures the dimensions 
 
 The noise is applied with torch.randn with a noise factor of 0.5.
 
-#### MAE Structure
+### MAE Structure
 For the MAE, we utilized the existing code written by the original researchers at Facebook Research Group, [published on Github](https://github.com/facebookresearch/mae). 
 
 We made adjustments that included bugfixes and changing some modules so that they would return the attention maps and latent spaces of the model. 
 
-##### Encoder Structure
+#### Encoder Structure
 
 The encoder processes only the visible (unmasked) patches.
 It uses a Vision Transformer (ViT), which applies several layers of transformer blocks to extract high-level features.
 A special "classification token" (cls_token) is added to summarize the global information across all patches.
 
-##### Decoder
+#### Decoder
 The decoder receives the latent representation from the encoder and reconstructs the image. It consists of masked tokens, positional embeddings, linear layers, and more transformers.
 
 Masked tokens (representing the missing patches) are added back into the sequence to reconstruct the full set of patches.
@@ -33,10 +47,10 @@ Positional embeddings are used to inform the network about the spatial arrangeme
 
 The decoder uses another set of transformer blocks to predict the pixel values of the missing patches.
 
-##### Training Details
+#### Training Details
 The loss function for a MAE compares only the reconstructed (masked) patches against the original patches. Unlike the DAE, it does not compare the entire reconstructed image to the original image, which is why as the original paper notes, the reconstruction of the originally visible patches is noticeably worse as they are not included in the loss function. 
 
-#### Reconstruction images
+### Reconstruction images
 
 ![dae reconstruction](Reconstructions/dae_reconstruction_original.png)
 *Fig x. DAE Reconstruction of noisy input images*
@@ -50,7 +64,7 @@ Train loss: 0.1216
 Test loss: 0.1194
 
 
-### Visualization of the Latent Space
+## Visualization of the Latent Space
 
 Our hypothesis for why the MAE performs better was that the latent space contained more information that helped distinguish the image. In order to test this theory, we decided to visualize the latent space for both the DAE and the MAE.
 
@@ -81,15 +95,16 @@ These radii were calculated by first finding the cluster center in the T-SNE red
 
 These numbers and visualizations show that the MAE number classes in general had a much tighter cluster. These results suggest that the MAE outperforms the DAE in large part due to the latent space information. 
 
-### Visualizing the Attention Maps
+## Visualizing the Attention Maps
 
 ![dae heatmaps](Heatmaps/dae_map_4.png)
 *Fig. x: DAE Saliency maps*
 
-![mae heatmaps](Heatmaps/mae_map_4.png)
+![mae heatmaps](Heatmaps/mae_map_head_test_4.png)
 *Fig. x: MAE Attention heatmaps*
 
 The DAE saliency map is computed by measuring how sensitive the latent representation of a denoising autoencoder (DAE) is to changes in each pixel of the input image. Gradients are calculated to find out how much each pixel of the input image contributes to the overall latent representation. This is done by "backtracking" from the latent space through the network to the input image. These gradient magnitudes are normalized to a 0–1 range and displayed as a heatmap, where brighter regions indicate pixels that have a greater impact on the latent space.
 
-The MAE attention map is computed by 
+The MAE attention map is computed by taking the transformer block's attention maps matrix multiplied the attention matrix with the masked image and normalizing the resulting values for each block. After they were normalized, we overlayed the attention weights over the original image, and a brighter patch indicates the computed attention value was high for that patch. 
 
+## Conclusion
