@@ -13,7 +13,7 @@ from tqdm import tqdm
 from einops import repeat, rearrange
 from einops.layers.torch import Rearrange
 
-from cifar10_models import CIFAR10Autoencoder, CustomCIFAR10MaskedAutoencoder, MAEEncoder
+from cifar10_models import CIFAR10Autoencoder, CustomCIFAR10MaskedAutoencoder, MAEEncoder, CIFAR10DenoisingAutoencoder
 
 # CIFAR-10 classes
 CLASSES = ('plane', 'car', 'bird', 'cat', 'deer',
@@ -37,8 +37,12 @@ class CIFAR10Classifier(nn.Module):
             # Get the feature dimension from a forward pass
             dummy_input = torch.randn(1, 3, 32, 32)
             with torch.no_grad():
-                features, _, _ = self.encoder_model.forward_encoder(dummy_input, mask_ratio=0.75)
-                input_dim = features.shape[-1]  # Last dimension is feature dim
+                if encoder_type == 'mae':
+                    features, _, _ = self.encoder_model.forward_encoder(dummy_input, mask_ratio=0.75)
+                    input_dim = features.shape[-1]  # Last dimension is feature dim
+                elif encoder_type == 'dae':
+                    features = self.encoder_model.encoder(dummy_input)
+                    input_dim = features.view(features.size(0), -1).shape[-1]
         
         # Classification head
         self.classifier = nn.Sequential(
@@ -60,6 +64,9 @@ class CIFAR10Classifier(nn.Module):
         elif self.encoder_type == 'mae':
             features, _, _ = self.encoder_model.forward_encoder(x, mask_ratio=0.75)  # B x (N+1) x D
             features = features[:, 0]  # Take CLS token: B x D
+        elif self.encoder_type == 'dae':
+            features = self.encoder_model.encoder(x)
+            features = features.view(features.size(0), -1)  # Flatten to [batch, 48*4*4]
         
         return self.classifier(features)
 
@@ -162,7 +169,7 @@ def train_classifier(model, trainloader, testloader, num_epochs=100,
             torch.save(model.state_dict(), save_path)
             print(f'Saved model with accuracy: {best_acc:.2f}%')
         
-        scheduler.step()
+        scheduler.step(acc)
     
     return model
 
@@ -244,7 +251,7 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['ae', 'mae'], default='ae')
+    parser.add_argument('--model', type=str, choices=['ae', 'mae', 'dae'], default='ae')
     parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--load_pretrained', action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
@@ -252,6 +259,13 @@ if __name__ == '__main__':
     # Load the desired encoder model
     if args.model == 'ae':
         enc_model = CIFAR10Autoencoder().to(device)
+        enc_model.load_state_dict(torch.load(f'cifar10_{args.model}_weights_20_epochs.pth'))
+        enc_model.eval()
+        classifier = CIFAR10Classifier(encoder_model=enc_model, encoder_type=args.model).to(device)
+        if args.load_pretrained:
+            classifier.load_state_dict(torch.load(f'cifar10_classifier_{args.model}.pth'))
+    elif args.model == 'dae':
+        enc_model = CIFAR10DenoisingAutoencoder().to(device)
         enc_model.load_state_dict(torch.load(f'cifar10_{args.model}_weights_20_epochs.pth'))
         enc_model.eval()
         classifier = CIFAR10Classifier(encoder_model=enc_model, encoder_type=args.model).to(device)
@@ -269,9 +283,9 @@ if __name__ == '__main__':
     trainloader, testloader = get_data_loaders(batch_size=128)
 
     # Train the classifier
-    if args.model == 'ae':
+    if args.model == 'ae' or args.model == 'dae':
         train_classifier(classifier, trainloader, testloader, 
                                   num_epochs=args.epochs, device=device, 
-                                  save_path=f'cifar10_classifier_{args.model}_patch_size_2.pth')
-    else:
+                                  save_path=f'cifar10_classifier_{args.model}.pth')
+    elif args.model == 'mae':
         train_vit_classifier(classifier, device, trainloader, testloader, args.epochs)

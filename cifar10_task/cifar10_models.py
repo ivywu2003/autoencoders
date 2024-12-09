@@ -6,6 +6,7 @@ import numpy as np
 import timm
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
@@ -18,8 +19,6 @@ from einops.layers.torch import Rearrange
 
 from timm.models.layers import trunc_normal_
 from timm.models.vision_transformer import Block
-
-# from models_mae import MaskedAutoencoderViT
 
 class CIFAR10Autoencoder(nn.Module):
     def __init__(self, latent_dim=64, norm_pix_loss=False):
@@ -56,52 +55,6 @@ class CIFAR10Autoencoder(nn.Module):
         x = self.encoder(x)
         x = self.decoder(x)
         return x
-
-# class CIFAR10MaskedAutoencoder(MaskedAutoencoderViT):
-#     def __init__(self, img_size=32, patch_size=2, in_chans=3, embed_dim=64, depth=4, num_heads=8, decoder_embed_dim=32, decoder_depth=2, decoder_num_heads=8, mlp_ratio=4.0, norm_layer=nn.LayerNorm, norm_pix_loss=False):
-#         self.patch_size = patch_size
-#         MaskedAutoencoderViT.__init__(self, img_size=img_size, patch_size=patch_size, in_chans=in_chans, 
-#                                      embed_dim=embed_dim, depth=depth, num_heads=num_heads, 
-#                                      decoder_embed_dim=decoder_embed_dim, decoder_depth=decoder_depth, 
-#                                      decoder_num_heads=decoder_num_heads, mlp_ratio=mlp_ratio, 
-#                                      norm_layer=norm_layer, norm_pix_loss=norm_pix_loss)
-
-#     def forward_encoder(self, x, mask_ratio, return_attention=False):
-#         x = self.patch_embed(x)
-#         x = x + self.pos_embed[:, 1:, :]
-#         x, mask, ids_restore = self.random_masking(x, mask_ratio)
-
-#         cls_token = self.cls_token + self.pos_embed[:, :1, :]
-#         cls_tokens = cls_token.expand(x.shape[0], -1, -1)
-#         x = torch.cat((cls_tokens, x), dim=1)
-
-#         attn_weights_all = []
-#         for blk in self.blocks:
-#             x, attn = blk(x, return_attention=True)
-#             if return_attention:
-#                 attn_weights_all.append(attn)
-
-#         x = self.norm(x)
-
-#         if return_attention:
-#             return x, mask, ids_restore, attn_weights_all
-#         return x, mask, ids_restore
-
-#     def forward(self, imgs, mask_ratio=0.75, return_latent=False, return_attention=False):
-#         if return_attention:
-#             latent, mask, ids_restore, attn_weights_all = self.forward_encoder(imgs, mask_ratio, True)
-#             pred = self.forward_decoder(latent, ids_restore)
-#             loss = self.forward_loss(imgs, pred, mask)
-#             if return_latent:
-#                 return latent, loss, pred, mask, attn_weights_all
-#             return loss, pred, mask, attn_weights_all
-#         else:
-#             latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio, False)
-#             pred = self.forward_decoder(latent, ids_restore)
-#             loss = self.forward_loss(imgs, pred, mask)
-#             if return_latent:
-#                 return latent, loss, pred, mask
-#             return loss, pred, mask
 
 def random_indexes(size : int):
     forward_indexes = np.arange(size)
@@ -236,3 +189,64 @@ class CustomCIFAR10MaskedAutoencoder(nn.Module):
         features, backward_indexes = self.encoder(img)
         predicted_img, mask = self.decoder(features,  backward_indexes)
         return predicted_img, mask
+
+class ConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=2):
+        super().__init__()
+        padding = kernel_size // 2
+        self.conv = nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding
+        )
+        self.bn = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        return self.relu(self.bn(self.conv(x)))
+
+class DeconvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size):
+        super().__init__()
+        self.deconv = nn.ConvTranspose2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=2,
+            padding=1,
+            output_padding=1
+        )
+        self.bn = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        return self.relu(self.bn(self.deconv(x)))
+
+class CIFAR10DenoisingAutoencoder(nn.Module):
+    def __init__(self):
+        super(CIFAR10DenoisingAutoencoder, self).__init__()
+        # Input size: [batch, 3, 32, 32]
+        # Output size: [batch, 3, 32, 32]
+        self.encoder = nn.Sequential(
+            nn.Conv2d(3, 12, 4, stride=2, padding=1),            # [batch, 12, 16, 16]
+            nn.ReLU(),
+            nn.Conv2d(12, 24, 4, stride=2, padding=1),           # [batch, 24, 8, 8]
+            nn.ReLU(),
+			nn.Conv2d(24, 48, 4, stride=2, padding=1),           # [batch, 48, 4, 4]
+            nn.ReLU(),
+        )
+        self.decoder = nn.Sequential(
+			nn.ConvTranspose2d(48, 24, 4, stride=2, padding=1),  # [batch, 24, 8, 8]
+            nn.ReLU(),
+			nn.ConvTranspose2d(24, 12, 4, stride=2, padding=1),  # [batch, 12, 16, 16]
+            nn.ReLU(),
+            nn.ConvTranspose2d(12, 3, 4, stride=2, padding=1),   # [batch, 3, 32, 32]
+            nn.Sigmoid(),
+        )
+
+    def forward(self, x):
+        encoded = self.encoder(x)
+        decoded = self.decoder(encoded)
+        return decoded
