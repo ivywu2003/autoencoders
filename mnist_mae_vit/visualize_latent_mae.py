@@ -29,7 +29,7 @@ def visualize_latent_space_with_cluster_radius(mae_model, dataloader, device, nu
             lbls = lbls.numpy()
             
             latent, _, _, _ = mae_model.forward_encoder(images, mask_ratio=0.75, return_attention = True)  # Assuming MAE has a forward_encoder method
-            # latent = latent[:, 1:, :]  # Ignore [CLS] token, shape: [B, num_patches, embed_dim]
+            latent = latent[:, 0, :]  # Ignore [CLS] token, shape: [B, num_patches, embed_dim]
             print(latent.shape)
             latent = latent.view(latent.shape[0], -1).cpu().numpy()
             print("latent shape", latent.shape)
@@ -81,7 +81,7 @@ def visualize_latent_space_with_cluster_radius(mae_model, dataloader, device, nu
     plt.figure(figsize=(10, 8))
     scatter = plt.scatter(reduced_vectors[:, 0], reduced_vectors[:, 1], c=labels, cmap='tab10', s=15)
     plt.colorbar(scatter, label='Class Label')
-    plt.title(f"MAE Latent Space Visualization using TSNE")
+    plt.title(f"MNIST MAE Latent Space Visualization using TSNE")
     plt.xlabel("Dimension 1")
     plt.ylabel("Dimension 2")
     plt.grid(True)

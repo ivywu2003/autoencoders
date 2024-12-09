@@ -101,7 +101,7 @@ def visualize_latent_space_dae_with_cluster_radius(dae_model, dataloader, device
     plt.figure(figsize=(10, 8))
     scatter = plt.scatter(reduced_vectors[:, 0], reduced_vectors[:, 1], c=labels, cmap='tab10', s=15)
     plt.colorbar(scatter, label='Class Label')
-    plt.title(f"DAE Latent Space Visualization using {method.upper()}")
+    plt.title(f"MNIST DAE Latent Space Visualization using {method.upper()}")
     plt.xlabel("Dimension 1")
     plt.ylabel("Dimension 2")
     plt.grid(True)
