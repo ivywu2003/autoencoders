@@ -10,19 +10,33 @@ from mae_vit import MaskedAutoencoderViTForMNIST
 from dae import ConvDenoiser
 from cifar10_models import CIFAR10DenoisingAutoencoder, CustomCIFAR10MaskedAutoencoder
 
+def find_closest_factors(num):
+    min_diff = num - 1
+    factors = (1, num)
+    for i in range(1, num + 1):
+        larger = max(i, num // i)
+        smaller = min(i, num // i)
+        diff = larger - smaller
+        if num % i == 0 and diff < min_diff:
+            min_diff = diff
+            factors = (smaller, larger)
+    return factors
+
 def plot_weight_distribution(model, bins=256, count_nonzero_only=False):
     # Count weight parameters
     num_graphs = 0
     for name, param in model.named_parameters():
-        if 'weight' in name:
+        if 'weight' in name and 'norm' not in name:
             num_graphs += 1
 
+    cols, rows = find_closest_factors(num_graphs)
+
     # Create subplots
-    fig, axes = plt.subplots(num_graphs, 1, figsize=(8, 4 * num_graphs))
+    fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 2 * rows))
     axes = axes.ravel()
     plot_index = 0
     for name, param in model.named_parameters():
-        if 'weight' in name:
+        if 'weight' in name and 'norm' not in name:
             ax = axes[plot_index]
             if count_nonzero_only:
                 param_cpu = param.detach().view(-1).cpu()
@@ -39,7 +53,9 @@ def plot_weight_distribution(model, bins=256, count_nonzero_only=False):
     fig.tight_layout()
     # plt.subplots_adjust(hspace=0.5)
     fig.subplots_adjust(top=0.925)
-    plt.show()
+    
+    plt.savefig("weight_distribution.png")
+    plt.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -48,7 +64,7 @@ if __name__ == "__main__":
         type=str,
         help="The type of model to load.",
         choices=["mnist_dae", "mnist_mae", "cifar10_dae", "cifar10_mae"],
-        default="mae_vit",
+        default="mnist_mae",
     )
     parser.add_argument(
         "--model_path",
