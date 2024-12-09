@@ -72,29 +72,34 @@ def visualize_attention_heatmaps(mae_model, dataloader, device, img_size, patch_
         for i in range(num_images):
             original_image = images[i].cpu().squeeze().numpy()
             masked_image = masked_images[i].cpu().squeeze().numpy()
-            # attention_map = attention_weights[i].reshape(img_size)
-            attention_map = attention_weights[i, 1:, 1:]
-            attention_map = np.abs(attention_map)
-            patched_image = patched_images[i]
-            patched_image = patched_image[original_mask[i] == 0, :]
+            attention_list = []
+            # Iterate through each attention head and plot them separately
+            for head_id in range(attention_weights.shape[0]):
+                attention_map = attention_weights[head_id, 1:, 1:]
+                attention_map = np.abs(attention_map)
 
-            mask_attention = attention_map @ patched_image.numpy()
-            mask_attention = np.abs(mask_attention)
-            mask_attention = (mask_attention - mask_attention.min()) / (
-                mask_attention.max() - mask_attention.min()
-            )  # Normalize to [0, 1]
+                patched_image = patched_images[i]
+                patched_image = patched_image[original_mask[i] == 0, :]
 
-            num_patches = (img_size[0]//patch_size)*(img_size[1]//patch_size)
-            full_attention_map = np.zeros((num_patches, patch_size**2))
-            flattened_mask = original_mask[i]
-            full_attention_map[flattened_mask == 0] = mask_attention
-            full_attention_map = full_attention_map.reshape((1, *full_attention_map.shape[:]))
-            full_attention_map = torch.from_numpy(full_attention_map)
-            full_attention_map = unpatchify(full_attention_map,  patch_size=patch_size)
-            full_attention_map = full_attention_map.reshape(img_size)
-            
+                mask_attention = attention_map @ patched_image.numpy()
+                mask_attention = np.abs(mask_attention)
+                mask_attention = (mask_attention - mask_attention.min()) / (
+                    mask_attention.max() - mask_attention.min()
+                )  # Normalize to [0, 1]
+
+                num_patches = (img_size[0]//patch_size)*(img_size[1]//patch_size)
+                full_attention_map = np.zeros((num_patches, patch_size**2))
+                flattened_mask = original_mask[i]
+                full_attention_map[flattened_mask == 0] = mask_attention
+                full_attention_map = full_attention_map.reshape((1, *full_attention_map.shape[:]))
+                full_attention_map = torch.from_numpy(full_attention_map)
+                full_attention_map = unpatchify(full_attention_map,  patch_size=patch_size)
+                full_attention_map = full_attention_map.reshape(img_size)
+                attention_list.append(full_attention_map)
+
             # Plotting
-            fig, ax = plt.subplots(1, 4, figsize=(12, 4))
+
+            fig, ax = plt.subplots(1, 7, figsize=(25, 4))
             ax[0].imshow(original_image, cmap="gray")
             ax[0].set_title("Original Image")
             ax[0].axis("off")
@@ -102,19 +107,18 @@ def visualize_attention_heatmaps(mae_model, dataloader, device, img_size, patch_
             ax[1].imshow(masked_image, cmap="gray")
             ax[1].set_title("Masked Image")
             ax[1].axis("off")
-
             ax[2].imshow(augmented[i,0], cmap="gray")
             ax[2].set_title("Reconstruction")
             ax[2].axis("off")
-            
-            ax[3].imshow(original_image, cmap="gray")
-            attention_heatmap = ax[3].imshow(full_attention_map, cmap="hot", alpha=0.7)
-            ax[3].set_title("Attention Heatmap")
-            ax[3].axis("off")
-            
-            cbar = fig.colorbar(attention_heatmap, ax=ax[3], orientation="vertical", fraction=0.046, pad=0.04)
-            cbar.set_label("Attention Intensity", rotation=270, labelpad=15)
-            plt.savefig(f"./final graphics/mae_map_{labels[i]}.png")
+            for idx in range(3, 7):
+                ax[idx].imshow(original_image, cmap="gray")
+                attention_heatmap = ax[idx].imshow(attention_list[idx-3], cmap="hot", alpha=0.7)
+                ax[idx].set_title(f"Head {idx-3}")
+                ax[idx].axis("off")
+                
+                cbar = fig.colorbar(attention_heatmap, ax=ax[idx], orientation="vertical", fraction=0.046, pad=0.04)
+            # cbar.set_label("Attention Intensity", rotation=270, labelpad=15)
+            plt.savefig(f"./final graphics/mae_map_head_test_{i}.png")
             plt.show()
 
 # Example usage:
@@ -141,3 +145,4 @@ mae_model = MaskedAutoencoderViTForMNIST(
 mae_model.load_state_dict(torch.load('mae_weights_vit_patch2_20epochs.pth'))
 
 visualize_attention_heatmaps(mae_model, test_loader, device, img_size, patch_size)
+
