@@ -1,12 +1,14 @@
 import sys
 sys.path.insert(1, "../mae")
 sys.path.insert(1, "../mnist_mae_vit") # Insert there to ensure the loaded mae_vit is the one in mnist_mae_vit
+sys.path.insert(1, "../cifar10_task")
 
 import argparse
 import torch
 from matplotlib import pyplot as plt
 from mae_vit import MaskedAutoencoderViTForMNIST
 from dae import ConvDenoiser
+from cifar10_models import CIFAR10DenoisingAutoencoder, CustomCIFAR10MaskedAutoencoder
 
 def plot_weight_distribution(model, bins=256, count_nonzero_only=False):
     # Count weight parameters
@@ -45,7 +47,7 @@ if __name__ == "__main__":
         "--model",
         type=str,
         help="The type of model to load.",
-        choices=["dae", "mae_vit"],
+        choices=["mnist_dae", "mnist_mae", "cifar10_dae", "cifar10_mae"],
         default="mae_vit",
     )
     parser.add_argument(
@@ -56,16 +58,20 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    if args.model == "dae":
+    if args.model == "mnist_dae":
         model = ConvDenoiser()
-    elif args.model == "mae_vit":
+    elif args.model == "mnist_mae":
         model = MaskedAutoencoderViTForMNIST(
             img_size=28, patch_size=2, in_chans=1, 
             embed_dim=64, depth=4, num_heads=4, 
             decoder_embed_dim=32, decoder_depth=2, decoder_num_heads=4
         )
+    elif args.model == "cifar10_dae":
+        model = CIFAR10DenoisingAutoencoder()
+    elif args.model == "cifar10_mae":
+        model = CustomCIFAR10MaskedAutoencoder()
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    model.load_state_dict(torch.load(args.model_path))
+    model.load_state_dict(torch.load(args.model_path, map_location=device))
     plot_weight_distribution(model)
     model = model.to(device)
