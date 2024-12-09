@@ -50,7 +50,7 @@ class MaskedAutoencoderViTForMNIST(MaskedAutoencoderViT):
         x = torch.einsum('nhwpqc->nchpwq', x)
         imgs = x.reshape(shape=(x.shape[0], 1, h * p, h * p))
         return imgs
-    def forward_encoder(self, x, mask_ratio, return_attention=False):
+    def forward_encoder(self, x, mask_ratio):
         x = self.patch_embed(x)
         x = x + self.pos_embed[:, 1:, :]
         x, mask, ids_restore = self.random_masking(x, mask_ratio)
@@ -61,18 +61,12 @@ class MaskedAutoencoderViTForMNIST(MaskedAutoencoderViT):
 
         attn_weights_all = []
         for blk in self.blocks:
-            if return_attention:
-                x, attn_weights = blk(x, return_attention=True)
-                attn_weights_all.append(attn_weights)
-            else:
-                x = blk(x)
+            x = blk(x)
 
         x = self.norm(x)
-        if return_attention:
-            return x, mask, ids_restore, attn_weights_all
         return x, mask, ids_restore
-    def forward(self, imgs, mask_ratio=0.75, return_attention = True):
-        latent, mask, ids_restore, attn = self.forward_encoder(imgs, mask_ratio, return_attention = return_attention)
+    def forward(self, imgs, mask_ratio=0.75):
+        latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
         loss = self.forward_loss(imgs, pred, mask)
-        return loss, pred, mask, attn
+        return loss, pred, mask

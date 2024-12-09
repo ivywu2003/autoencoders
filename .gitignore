@@ -3,4 +3,8 @@ mnist_mae_vit/data
 __pycache__/
 **/data
 **/__pycache__
+
 venv/
+
+# Frank had to use this to install certificates to download MNIST
+help.py 
