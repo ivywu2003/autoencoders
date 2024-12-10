@@ -60,7 +60,7 @@ def visualize_attention_heatmaps(mae_model, dataloader, device, img_size, patch_
         reconstructed = mae_model.unpatchify(pred)
         reconstructed = torch.einsum('nchw->nhwc', reconstructed).detach().cpu() 
         reconstructed = reconstructed.reshape((num_images, color_channels, *img_size))
-
+        print("attention weights shape", attention_weights[0].shape)
         mask = original_mask.unsqueeze(-1).repeat(1, 1, patch_size**2)  # (N, H*W, p*p*C)
         mask = unpatchify(mask, patch_size)
         masked_images = images * (1 - mask)

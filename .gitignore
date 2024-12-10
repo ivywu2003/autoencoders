@@ -3,6 +3,7 @@ mnist_mae_vit/data
 __pycache__/
 **/data
 **/__pycache__
+**/.DS_Store
 
 venv/
 

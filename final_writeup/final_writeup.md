@@ -3,8 +3,7 @@
 ## Introduction and Motivation
 Autoencoders are designed to learn efficient, compressed representations of input data, extracting their most prominent features to apply to downstream tasks like classification, clustering, and anomaly detection. Autoencoders for vision can be used for image denoising, image compression, image retrieval, and image generation. Applications can even include things like denoising MRI's for better image quality by removing artifacts. Input masking is a technique that increases the generalizability of these autoencoder latent representations, encouraging autoencoders to learn high-level features that better capture the essential patterns within the data and resulting in masked autoencoders (MAEs) that significantly outperform their regular counterparts ~\cite{MAEs}.
 
-
- Masked autoencoders learn complex reconstructions of the original images, suggesting that the architecture of the MAE has some hidden strengths that are yet to be understood. The original paper concluded with the remark "We hypothesize that this behavior occurs by way of a rich hidden representation inside the MAE. We hope this perspective will inspire future work." This study investigates how and why MAEs offer better feature representation through their latent space representations.
+Masked autoencoders learn complex reconstructions of the original images, suggesting that the architecture of the MAE has some hidden strengths that are yet to be understood. The original paper concluded with the remark "We hypothesize that this behavior occurs by way of a rich hidden representation inside the MAE. We hope this perspective will inspire future work." This study investigates how and why MAEs offer better feature representation through their latent space representations.
 
 ## What are Masked Autoencoders?
 
@@ -77,6 +76,65 @@ The loss function for a MAE compares only the reconstructed (masked) patches aga
 *Fig x. MAE Reconstruction of masked input images*
 
 As we can see with Fig. x and Fig. x, The MAE generally reconstructs much better. The final loss for training the DAE was around 0.532, whereas the final loss for the MAE was only 0.11 for 20 epochs each. 
+
+## Training MAE and DAE CIFAR10
+
+### DAE Structure
+
+The Denoising Autoencoder (DAE) for CIFAR10 uses a convolutional architecture with symmetric encoder and decoder paths. 
+
+The encoder consists of three convolutional blocks, each reducing the spatial dimensions by half while increasing the number of channels:
+1. Input [3, 32, 32] → Conv2d → [12, 16, 16]
+2. [12, 16, 16] → Conv2d → [24, 8, 8]
+3. [24, 8, 8] → Conv2d → [48, 4, 4]
+
+Each convolutional layer uses a kernel size of 4, stride of 2, and padding of 1, followed by ReLU activation. This progressively compresses the 32x32 RGB image into a 48-channel 4x4 latent representation.
+
+The decoder mirrors this structure with transposed convolutions:
+1. [48, 4, 4] → ConvTranspose2d → [24, 8, 8]
+2. [24, 8, 8] → ConvTranspose2d → [12, 16, 16]
+3. [12, 16, 16] → ConvTranspose2d → [3, 32, 32]
+
+The final layer uses a Sigmoid activation to ensure output values are between 0 and 1.
+
+During training, we used the following parameters:
+- Optimizer: Adam with learning rate 0.0003 and weight decay 1e-5
+- Loss function: Mean Squared Error (MSE)
+- Noise factor: 0.1 (Gaussian noise)
+- Batch size: 64
+- Number of epochs: 20
+
+The noise is added to the input images during training by sampling from a normal distribution (scaled by the noise factor) and adding it to the original image. The noisy images are then clamped to the range [0, 1] to maintain valid pixel values. The model is trained to reconstruct the original, clean image from this noisy input.
+
+### MAE Structure: 
+
+The Masked Autoencoder (MAE) for CIFAR10 uses a Vision Transformer (ViT) based architecture with asymmetric encoder-decoder design. 
+
+The encoder consists of:
+1. Patch Embedding: Converts 32x32 RGB images into patches of size 2x2, resulting in 256 patches
+   - Input [3, 32, 32] → Conv2d(patch_size=2) → 256 patches of dimension 192
+2. Position Embedding: Adds learnable position embeddings to each patch
+3. CLS Token: Prepends a learnable classification token
+4. Transformer Encoder: 12 layers of transformer blocks, each with:
+   - Multi-head self-attention (3 heads)
+   - Layer normalization
+   - MLP blocks
+5. Random Masking: Masks 75% of patches randomly during training
+
+The decoder has a lighter structure:
+1. Mask tokens: Replace masked patches with learnable mask tokens
+2. Transformer Decoder: 4 layers of transformer blocks with 3 heads each
+3. Reconstruction head: Predicts pixel values for masked patches only
+
+Training parameters:
+- Optimizer: AdamW with learning rate 1e-4 * (batch_size/256), betas=(0.9, 0.95), weight decay 1e-5
+- Loss function: Mean Squared Error (MSE) on masked patches only
+- Masking ratio: 75% of patches
+- Batch size: 64
+- Number of epochs: 20
+- Learning rate schedule: Cosine decay with warm-up
+
+The MAE's unique feature is that it only reconstructs the masked portions of the image, making the decoder's task more focused. The high masking ratio (75%) forces the encoder to develop a robust understanding of image structure and dependencies between visible and masked patches.
 
 ## Visualization of the Latent Space
 

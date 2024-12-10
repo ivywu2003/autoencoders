@@ -17,8 +17,10 @@ from tqdm import tqdm
 from einops import repeat, rearrange
 from einops.layers.torch import Rearrange
 
-from timm.models.layers import trunc_normal_
-from timm.models.vision_transformer import Block
+from timm.layers import DropPath, Mlp, trunc_normal_, use_fused_attn
+from torch.jit import Final
+
+from typing import Any, Callable, Dict, Optional, Set, Tuple, Type, Union, List
 
 class CIFAR10Autoencoder(nn.Module):
     def __init__(self, latent_dim=64, norm_pix_loss=False):
@@ -83,6 +85,130 @@ class PatchShuffle(torch.nn.Module):
 
         return patches, forward_indexes, backward_indexes
 
+class Attention(nn.Module):
+    fused_attn: Final[bool]
+
+    def __init__(
+            self,
+            dim: int,
+            num_heads: int = 8,
+            qkv_bias: bool = False,
+            qk_norm: bool = False,
+            attn_drop: float = 0.,
+            proj_drop: float = 0.,
+            norm_layer: nn.Module = nn.LayerNorm,
+            return_attention = False,
+    ) -> None:
+        super().__init__()
+        assert dim % num_heads == 0, 'dim should be divisible by num_heads'
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.scale = self.head_dim ** -0.5
+        self.fused_attn = use_fused_attn()
+
+        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.q_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
+        self.k_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
+        self.attn_drop = nn.Dropout(attn_drop)
+        self.proj = nn.Linear(dim, dim)
+        self.proj_drop = nn.Dropout(proj_drop)
+        self.return_attention = return_attention
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, N, C = x.shape
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv.unbind(0)  # make torchscript happy (cannot use tensor as tuple)
+
+        q, k = self.q_norm(q), self.k_norm(k)
+        
+        # Calculate attention scores
+        q = q * self.scale
+        attn = q @ k.transpose(-2, -1)  # [B, num_heads, N, N]
+        attn = attn.softmax(dim=-1)
+        
+        # Store raw attention weights before dropout
+        raw_attn = attn.clone()
+        
+        # Apply dropout and attention
+        attn = self.attn_drop(attn)
+        x = attn @ v
+
+        x = x.transpose(1, 2).reshape(B, N, C)
+        x = self.proj(x)
+        x = self.proj_drop(x)
+        
+        if self.return_attention:
+            return x, raw_attn
+        return x
+
+class LayerScale(nn.Module):
+    def __init__(
+            self,
+            dim: int,
+            init_values: float = 1e-5,
+            inplace: bool = False,
+    ) -> None:
+        super().__init__()
+        self.inplace = inplace
+        self.gamma = nn.Parameter(init_values * torch.ones(dim))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x.mul_(self.gamma) if self.inplace else x * self.gamma
+
+
+class Block(nn.Module):
+    def __init__(
+            self,
+            dim: int,
+            num_heads: int,
+            mlp_ratio: float = 4.,
+            qkv_bias: bool = False,
+            qk_norm: bool = False,
+            proj_drop: float = 0.,
+            attn_drop: float = 0.,
+            init_values: Optional[float] = None,
+            drop_path: float = 0.,
+            act_layer: nn.Module = nn.GELU,
+            norm_layer: nn.Module = nn.LayerNorm,
+            mlp_layer: nn.Module = Mlp,
+            return_attention = False,
+    ) -> None:
+        super().__init__()
+        self.norm1 = norm_layer(dim)
+        self.attn = Attention(
+            dim,
+            num_heads=num_heads,
+            qkv_bias=qkv_bias,
+            qk_norm=qk_norm,
+            attn_drop=attn_drop,
+            proj_drop=proj_drop,
+            norm_layer=norm_layer,
+            return_attention=return_attention,
+        )
+        self.ls1 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
+        self.drop_path1 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+        self.norm2 = norm_layer(dim)
+        self.mlp = mlp_layer(
+            in_features=dim,
+            hidden_features=int(dim * mlp_ratio),
+            act_layer=act_layer,
+            drop=proj_drop,
+        )
+        self.ls2 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
+        self.drop_path2 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.return_attention = return_attention
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.return_attention:
+            x, attn = self.attn(self.norm1(x))
+            x = x + self.drop_path1(self.ls1(x))
+            x = x + self.drop_path2(self.ls2(self.mlp(self.norm2(x))))
+            return x, attn
+        x = x + self.drop_path1(self.ls1(self.attn(self.norm1(x))))
+        x = x + self.drop_path2(self.ls2(self.mlp(self.norm2(x))))
+        return x
+
 class MAEEncoder(torch.nn.Module):
     def __init__(self,
                  image_size=32,
@@ -91,6 +217,7 @@ class MAEEncoder(torch.nn.Module):
                  num_layer=12,
                  num_head=3,
                  mask_ratio=0.75,
+                 return_attention = False,
                  ) -> None:
         super().__init__()
 
@@ -100,9 +227,15 @@ class MAEEncoder(torch.nn.Module):
 
         self.patchify = torch.nn.Conv2d(3, emb_dim, patch_size, patch_size)
 
-        self.transformer = torch.nn.Sequential(*[Block(emb_dim, num_head) for _ in range(num_layer)])
+        self.transformer = torch.nn.Sequential(*[Block(emb_dim, num_head, return_attention = return_attention) for _ in range(num_layer)])
+        if return_attention:
+            self.transformer = torch.nn.ModuleList(
+                [Block(emb_dim, num_head, return_attention = return_attention) for _ in range(num_layer)],
+            )
 
         self.layer_norm = torch.nn.LayerNorm(emb_dim)
+
+        self.return_attention = return_attention
 
         self.init_weight()
 
@@ -119,9 +252,19 @@ class MAEEncoder(torch.nn.Module):
 
         patches = torch.cat([self.cls_token.expand(-1, patches.shape[1], -1), patches], dim=0)
         patches = rearrange(patches, 't b c -> b t c')
-        features = self.layer_norm(self.transformer(patches))
+        if self.return_attention:
+            x = patches
+            attn_weights = []
+            for blk in self.transformer:
+                x, attn = blk(x)
+                attn_weights.append(attn)
+            features = self.layer_norm(x)
+        else:
+            features = self.layer_norm(self.transformer(patches))
         features = rearrange(features, 'b t c -> t b c')
 
+        if self.return_attention:
+            return features, backward_indexes, attn_weights
         return features, backward_indexes
 
 class MAEDecoder(torch.nn.Module):
@@ -179,13 +322,19 @@ class CustomCIFAR10MaskedAutoencoder(nn.Module):
                  decoder_layer=4,
                  decoder_head=3,
                  mask_ratio=0.75,
+                 return_attention = False,
                  ) -> None:
         super().__init__()
 
-        self.encoder = MAEEncoder(image_size, patch_size, emb_dim, encoder_layer, encoder_head, mask_ratio)
+        self.encoder = MAEEncoder(image_size, patch_size, emb_dim, encoder_layer, encoder_head, mask_ratio, return_attention)
         self.decoder = MAEDecoder(image_size, patch_size, emb_dim, decoder_layer, decoder_head)
+        self.return_attention = return_attention
 
-    def forward(self, img, mask_ratio=0.75):
+    def forward(self, img):
+        if self.return_attention:
+            features, backward_indexes, attn_weights = self.encoder(img)
+            predicted_img, mask = self.decoder(features,  backward_indexes)
+            return predicted_img, mask, attn_weights
         features, backward_indexes = self.encoder(img)
         predicted_img, mask = self.decoder(features,  backward_indexes)
         return predicted_img, mask
