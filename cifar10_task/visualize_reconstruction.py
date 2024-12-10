@@ -93,7 +93,7 @@ if __name__ == '__main__':
     elif args.model == 'mae':
         model = CustomCIFAR10MaskedAutoencoder().to(device)
     
-    model.load_state_dict(torch.load(f'cifar10_{args.model}_weights_20_epochs.pth', map_location=torch.device('cpu')))
+    model.load_state_dict(torch.load(f'cifar10_task/cifar10_{args.model}_weights_20_epochs.pth', map_location=torch.device('cpu')))
     model.eval()
     
     # Prepare data

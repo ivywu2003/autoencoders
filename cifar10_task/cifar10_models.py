@@ -185,7 +185,7 @@ class CustomCIFAR10MaskedAutoencoder(nn.Module):
         self.encoder = MAEEncoder(image_size, patch_size, emb_dim, encoder_layer, encoder_head, mask_ratio)
         self.decoder = MAEDecoder(image_size, patch_size, emb_dim, decoder_layer, decoder_head)
 
-    def forward(self, img):
+    def forward(self, img, mask_ratio=0.75):
         features, backward_indexes = self.encoder(img)
         predicted_img, mask = self.decoder(features,  backward_indexes)
         return predicted_img, mask
