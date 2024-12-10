@@ -1,8 +1,8 @@
 import torch.nn as nn
 
-class CIFAR10DenoisingAutoencoder(nn.Module):
+class DenoisingAutoencoderCIFAR10(nn.Module):
     def __init__(self):
-        super(CIFAR10DenoisingAutoencoder, self).__init__()
+        super(DenoisingAutoencoderCIFAR10, self).__init__()
         self.encoder = nn.Sequential(
             nn.Conv2d(3, 12, 4, stride=2, padding=1),            # [batch, 12, 16, 16]
             nn.ReLU(),

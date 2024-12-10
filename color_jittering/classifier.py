@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 from jitter_images import load_mnist_data, load_cifar10_data
 from color_jitter_mae import MaskedAutoencoderCIFAR10
-from color_jitter_dae import CIFAR10DenoisingAutoencoder
+from color_jitter_dae import DenoisingAutoencoderCIFAR10
 
 CLASSES = ('plane', 'car', 'bird', 'cat', 'deer',
            'dog', 'frog', 'horse', 'ship', 'truck')

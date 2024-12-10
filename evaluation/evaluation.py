@@ -4,89 +4,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 import numpy as np
 import torch
-import torchvision
-from torchvision import transforms
 import skimage.metrics
 import matplotlib.pyplot as plt
-from mnist_mae_vit.mae_vit import MaskedAutoencoderViTForMNIST
-from mnist_mae_vit.dae import ConvDenoiser
-from cifar10_task.cifar10_models import CIFAR10DenoisingAutoencoder, CustomCIFAR10MaskedAutoencoder
-
-
-def load_mnist_for_mae():
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,))
-    ])
-    testset = torchvision.datasets.MNIST('./data', download=True, train=False, transform=transform)
-    testloader = torch.utils.data.DataLoader(testset, shuffle=False)
-    
-    return testloader
-
-def load_mnist_for_dae():
-    transform = transforms.ToTensor()
-    testset = torchvision.datasets.MNIST('./data', download=True, train=False, transform=transform)
-    testloader = torch.utils.data.DataLoader(testset, shuffle=False)
-    
-    return testloader
-
-def load_cifar10_for_mae():
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(0.5, 0.5)
-    ])
-
-    testset = torchvision.datasets.CIFAR10(
-        root='./data', train=False, download=True, transform=transform)
-    testloader = torch.utils.data.DataLoader(
-        testset, shuffle=False)
-    
-    return testloader
-
-def load_cifar10_for_dae():
-    transform = transforms.ToTensor()
-
-    testset = torchvision.datasets.CIFAR10(
-        root='./data', train=False, download=True, transform=transform)
-    testloader = torch.utils.data.DataLoader(
-        testset, shuffle=False)
-    
-    return testloader
-
-def denormalize(x):
-    """Denormalize images"""
-    mean = torch.tensor([0.5])
-    std = torch.tensor([0.5])
-    return x * std + mean
-
-def load_mnist_mae():
-    mae_model = MaskedAutoencoderViTForMNIST(
-        img_size=28, patch_size=2, in_chans=1, 
-        embed_dim=64, depth=4, num_heads=4, 
-        decoder_embed_dim=32, decoder_depth=2, decoder_num_heads=4
-    )
-    mae_model.load_state_dict(torch.load("mnist_mae_vit/mae_weights.pth", weights_only=True))
-    mae_model.eval()
-    return mae_model
-
-def load_cifar10_mae():
-    mae_model = CustomCIFAR10MaskedAutoencoder()
-    mae_model.load_state_dict(torch.load("cifar10_task/cifar10_mae_weights_20_epochs_custom.pth", weights_only=True, map_location=torch.device('cpu')))
-    mae_model.eval()
-    return mae_model
-
-def load_mnist_dae():
-    dae_model = ConvDenoiser()
-    dae_model.load_state_dict(torch.load('mnist_mae_vit/dae_weights.pth', weights_only=True)) 
-    dae_model.eval()
-    return dae_model
-
-def load_cifar10_dae():
-    dae_model = CIFAR10DenoisingAutoencoder()
-    dae_model.load_state_dict(torch.load('cifar10_task/cifar10_dae_weights_20_epochs.pth', weights_only=True, map_location=torch.device('cpu'))) 
-    dae_model.eval()
-    return dae_model
-
+from loaders import *
+from visualization import *
 
 def single_image_psnr(img1, img2):
     """
@@ -290,35 +211,28 @@ def generate_dae_ssim_plot(image_loader, model, save_path, greyscale):
     return
 
 if __name__ == "__main__":
-    # reconstruct_adjusted_reflectance()
-    # best_image = generate_psnr_plot()
-    # best_image = best_image.squeeze(0)
-    # best_image = torch.permute(best_image, (1, 2, 0))
-    # best_image = best_image.detach().numpy()
-
-    # plt.figure(figsize=(10, 5))
-    # plt.subplot(1, 1, 1)
-    # plt.title('Best Image')
-    # plt.imshow(best_image)
-    # plt.axis('off')
-    # plt.show()
-    mnist_mae_dataloader = load_mnist_for_mae()
-    mnist_dae_dataloader = load_mnist_for_dae()
-    cifar10_mae_dataloader = load_cifar10_for_mae()
+    # mnist_mae_dataloader = load_mnist_for_mae()
+    # mnist_dae_dataloader = load_mnist_for_dae()
+    # cifar10_mae_dataloader = load_cifar10_for_mae()
     cifar10_dae_dataloader = load_cifar10_for_dae()
 
-    mae_mnist_model = load_mnist_mae()
-    dae_mnist_model = load_mnist_dae()
-    mae_cifar10_model = load_cifar10_mae()
-    dae_cifar10_model = load_cifar10_dae()
+    # mae_mnist_model = load_mnist_mae()
+    # dae_mnist_model = load_mnist_dae()
+    # mae_cifar10_model = load_cifar10_mae()
+    # dae_cifar10_model = load_cifar10_dae()
 
 
     # generate_mae_psnr_plot(mnist_mae_dataloader, mae_mnist_model, 'mae_psnr_mnist.png')
-    generate_mae_psnr_plot(cifar10_mae_dataloader, mae_cifar10_model, 'mae_psnr_cifar10.png')
+    # generate_mae_psnr_plot(cifar10_mae_dataloader, mae_cifar10_model, 'mae_psnr_cifar10.png')
     # generate_dae_psnr_plot(mnist_dae_dataloader, dae_mnist_model, 'dae_psnr_mnist.png')
-    generate_dae_psnr_plot(cifar10_dae_dataloader, dae_cifar10_model, 'dae_psnr_cifar10.png')
+    # generate_dae_psnr_plot(cifar10_dae_dataloader, dae_cifar10_model, 'dae_psnr_cifar10.png')
 
     # generate_mae_ssim_plot(mnist_mae_dataloader, mae_mnist_model, 'mae_ssim_mnist.png', greyscale=True)
-    generate_mae_ssim_plot(cifar10_mae_dataloader, mae_cifar10_model, 'mae_ssim_cifar10.png', greyscale=False)
+    # generate_mae_ssim_plot(cifar10_mae_dataloader, mae_cifar10_model, 'mae_ssim_cifar10.png', greyscale=False)
     # generate_dae_ssim_plot(mnist_dae_dataloader, dae_mnist_model, 'dae_ssim_mnist.png', greyscale=True)
-    generate_dae_ssim_plot(cifar10_dae_dataloader, dae_cifar10_model, 'dae_ssim_cifar10.png', greyscale=False)
+    # generate_dae_ssim_plot(cifar10_dae_dataloader, dae_cifar10_model, 'dae_ssim_cifar10.png', greyscale=False)
+
+    model = CIFAR10DenoisingAutoencoder()
+    model.load_state_dict(torch.load("color_jittering/color_jitter_dae_weights_epoch_29.pth", weights_only=True, map_location=torch.device('cpu')))
+    model.eval()
+    visualize(cifar10_dae_dataloader, model, 'dae_cifar10.png')

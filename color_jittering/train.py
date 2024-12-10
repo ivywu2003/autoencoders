@@ -8,7 +8,7 @@ import torch.optim as optim
 from tqdm import tqdm
 from jitter_images import load_mnist_data, load_cifar10_data
 from color_jitter_mae import MaskedAutoencoderCIFAR10
-from color_jitter_dae import CIFAR10DenoisingAutoencoder
+from color_jitter_dae import DenoisingAutoencoderCIFAR10
 
 def train_mae_helper(mae, device, train_loader, optimizer, epoch):
     mae.train()
@@ -65,7 +65,7 @@ def train_dae():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     train_loader, test_loader = load_cifar10_data()
 
-    model = CIFAR10DenoisingAutoencoder()
+    model = DenoisingAutoencoderCIFAR10()
     model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=5e-4, weight_decay=1e-5)
 
