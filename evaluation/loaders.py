@@ -127,7 +127,6 @@ def load_jittered_cifar10_for_dae():
     """
     Returns train and test data loaders for CIFAR-10 dataset, with pixel values normalized to [-0.5, 0.5]
     and randomly jittered by brightness (0.5), contrast (0.5), saturation (0.5), and hue (0.1).
-    This loader is dissimilar because the pixel values are normalized to [-0.5, 0.5], even though this data would be used for the DAE for color jittering.
 
     Returns:
         trainloader: A DataLoader for training data.

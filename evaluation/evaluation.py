@@ -32,10 +32,11 @@ def generate_mae_psnr_plot(image_loader, model, save_path, mask_ratio=0.75):
             # reconstructed = ((1-mask)*image) + (mask*reconstructed)
 
             # CIFAR10 VERSION
-            reconstructed, mask = model(image.float(), mask_ratio=mask_ratio)
+            _, reconstructed, mask = model(image.float(), mask_ratio=mask_ratio)
+            mask = mask.unsqueeze(-1).repeat(1, 1, 2**2*3)
+            mask = model.unpatchify(mask)
+            reconstructed = model.unpatchify(reconstructed)
             reconstructed = reconstructed * mask + image * (1 - mask)
-            image = denormalize(image)
-            reconstructed = denormalize(reconstructed)
 
             # renormalize
             image = (image - torch.min(image))/(torch.max(image) - torch.min(image))
@@ -46,8 +47,9 @@ def generate_mae_psnr_plot(image_loader, model, save_path, mask_ratio=0.75):
             # plt.subplot(1, 2, 2)
             # plt.imshow(reconstructed.squeeze(0).permute(1, 2, 0).numpy())
             # plt.show()
-            psnr = single_image_psnr(image, reconstructed)
-            psnrs.append(psnr)
+            for i, r in zip(image, reconstructed):
+                psnrs.append(single_image_psnr(i, r).item())
+            
 
     # Create histogram
     plt.hist(psnrs, bins=10, edgecolor='black')
@@ -60,7 +62,7 @@ def generate_mae_psnr_plot(image_loader, model, save_path, mask_ratio=0.75):
     # Save plot to folder
     plt.savefig('evaluation/' + save_path)
     plt.show()
-    return
+    return np.mean(np.array(psnrs)), np.std(np.array(psnrs))
 
 def generate_dae_psnr_plot(image_loader, model, save_path):
     psnrs = []
@@ -76,10 +78,7 @@ def generate_dae_psnr_plot(image_loader, model, save_path):
             # CIFAR10 VERSION
             noise = torch.randn_like(image) * 0.1
             noisy_images = image + noise
-            noisy_images = torch.clamp(noisy_images, 0., 1.)
-            reconstructed = model(image.float())
-            image = denormalize(image)
-            reconstructed = denormalize(reconstructed)
+            reconstructed = model(noisy_images.float())
 
             # renormalize
             image = (image - torch.min(image))/(torch.max(image) - torch.min(image))
@@ -91,8 +90,9 @@ def generate_dae_psnr_plot(image_loader, model, save_path):
             # plt.imshow(reconstructed.squeeze(0).permute(1, 2, 0).numpy())
             # plt.show()
 
-            psnr = single_image_psnr(image, reconstructed)
-            psnrs.append(psnr)
+            for i, r in zip(image, reconstructed):
+                psnrs.append(single_image_psnr(i, r).item())
+
 
     # Create histogram
     plt.hist(psnrs, bins=10, edgecolor='black')
@@ -105,14 +105,14 @@ def generate_dae_psnr_plot(image_loader, model, save_path):
     # Save plot to folder
     plt.savefig('evaluation/' + save_path)
     plt.show()
-    return
+    return np.mean(np.array(psnrs)), np.std(np.array(psnrs))
 
 
 def structural_similarity(true_images, generated_images, greyscale=False):
     ssim = [skimage.metrics.structural_similarity(true_image, generated_image, channel_axis=0, data_range=1) for true_image, generated_image in zip(true_images, generated_images)]
     return ssim
 
-def generate_mae_ssim_plot(image_loader, model, save_path, greyscale, mask_ratio=0.75):
+def generate_mae_ssim_plot(image_loader, model, save_path, greyscale=False, mask_ratio=0.75):
     true_images = []
     generated_images = []
 
@@ -120,17 +120,18 @@ def generate_mae_ssim_plot(image_loader, model, save_path, greyscale, mask_ratio
         for image, _ in image_loader:
             # MNIST VERSION
             # _, pred, mask = model(image.float(), mask_ratio=mask_ratio)
-            # mask = mask.unsqueeze(-1).repeat(1, 1, model.patch_embed.patch_size[0]**2)  # (N, H*W, p*p*3)
+            # mask = mask.unsqueeze(-1).repeat(1, 1, 2**2)  # (N, H*W, p*p*3)
             # mask = model.unpatchify(mask)
-
             # reconstructed = model.unpatchify(pred)
             # reconstructed = ((1-mask)*image) + (mask*reconstructed)
 
             # CIFAR10 VERSION
-            reconstructed, mask = model(image.float(), mask_ratio=mask_ratio)
-            reconstructed = reconstructed * mask + image * (1 - mask)
-            image = denormalize(image)
-            reconstructed = denormalize(reconstructed)
+            _, pred, mask = model(image.float(), mask_ratio=mask_ratio)
+            mask = mask.unsqueeze(-1).repeat(1, 1, 2**2*3)  # (N, H*W, p*p*3)
+            mask = model.unpatchify(mask)
+            reconstructed = model.unpatchify(pred)
+            reconstructed = ((1-mask)*image) + (mask*reconstructed)
+
 
             # renormalize
             image = (image - torch.min(image))/(torch.max(image) - torch.min(image))
@@ -143,8 +144,9 @@ def generate_mae_ssim_plot(image_loader, model, save_path, greyscale, mask_ratio
             # plt.show()
             # break
 
-            true_images.append(image.squeeze(0).numpy())
-            generated_images.append(reconstructed.squeeze(0).numpy())
+            for i, r in zip(image, reconstructed):
+                true_images.append(i.squeeze(0).numpy())
+                generated_images.append(r.squeeze(0).numpy())
     
     ssim0 = structural_similarity(true_images, generated_images, greyscale=greyscale)
 
@@ -156,12 +158,12 @@ def generate_mae_ssim_plot(image_loader, model, save_path, greyscale, mask_ratio
     plt.ylabel('Frequency')
     plt.title('Histogram of SSIM for MAE reconstruction')
 
-    # Show plot
+    # Save plot to folder
     plt.savefig('evaluation/' + save_path)
     plt.show()
-    return
+    return np.mean(np.array(ssim0)), np.std(np.array(ssim0))
 
-def generate_dae_ssim_plot(image_loader, model, save_path, greyscale):
+def generate_dae_ssim_plot(image_loader, model, save_path, greyscale=False):
     true_images = []
     generated_images = []
 
@@ -176,10 +178,7 @@ def generate_dae_ssim_plot(image_loader, model, save_path, greyscale):
             # CIFAR10 VERSION
             noise = torch.randn_like(image) * 0.1
             noisy_images = image + noise
-            noisy_images = torch.clamp(noisy_images, 0., 1.)
-            reconstructed = model(image.float())
-            image = denormalize(image)
-            reconstructed = denormalize(reconstructed)
+            reconstructed = model(noisy_images.float())
 
             # plt.subplot(1, 2, 1)
             # plt.imshow(image.squeeze(0).squeeze(0).numpy(), cmap='gray')
@@ -192,8 +191,9 @@ def generate_dae_ssim_plot(image_loader, model, save_path, greyscale):
             image = (image - torch.min(image))/(torch.max(image) - torch.min(image))
             reconstructed = (reconstructed - torch.min(reconstructed))/(torch.max(reconstructed) - torch.min(reconstructed))
 
-            true_images.append(image.squeeze(0).numpy())
-            generated_images.append(reconstructed.squeeze(0).numpy())
+            for i, r in zip(image, reconstructed):
+                true_images.append(i.squeeze(0).numpy())
+                generated_images.append(r.squeeze(0).numpy())
     
     ssim0 = structural_similarity(true_images, generated_images, greyscale=greyscale)
 
@@ -208,31 +208,43 @@ def generate_dae_ssim_plot(image_loader, model, save_path, greyscale):
     # Show plot
     plt.savefig('evaluation/' + save_path)
     plt.show()
-    return
+    return np.mean(np.array(ssim0)), np.std(np.array(ssim0))
 
 if __name__ == "__main__":
-    # mnist_mae_dataloader = load_mnist_for_mae()
-    # mnist_dae_dataloader = load_mnist_for_dae()
+    # _, mnist_mae_dataloader = load_mnist_for_mae()
+    # _, mnist_dae_dataloader = load_mnist_for_dae()
     # cifar10_mae_dataloader = load_cifar10_for_mae()
-    cifar10_dae_dataloader = load_cifar10_for_dae()
+    # cifar10_dae_dataloader = load_cifar10_for_dae()
+    _, jittered_mae_dataloader = load_jittered_cifar10_for_mae()
+    _, jittered_dae_dataloader = load_jittered_cifar10_for_dae()
 
     # mae_mnist_model = load_mnist_mae()
     # dae_mnist_model = load_mnist_dae()
     # mae_cifar10_model = load_cifar10_mae()
     # dae_cifar10_model = load_cifar10_dae()
+    mae_jitter_model = load_jittered_mae()
+    dae_jitter_model = load_jittered_dae()
 
 
-    # generate_mae_psnr_plot(mnist_mae_dataloader, mae_mnist_model, 'mae_psnr_mnist.png')
+    # mnist_psnr_mean, mnist_psnr_std = generate_mae_psnr_plot(mnist_mae_dataloader, mae_mnist_model, 'mae_psnr_mnist.png')
+    # print("mnist_psnr_mean", mnist_psnr_mean, "mnist_psnr_std", mnist_psnr_std)
     # generate_mae_psnr_plot(cifar10_mae_dataloader, mae_cifar10_model, 'mae_psnr_cifar10.png')
-    # generate_dae_psnr_plot(mnist_dae_dataloader, dae_mnist_model, 'dae_psnr_mnist.png')
+    # mnist_psnr_mean, mnist_psnr_std = generate_dae_psnr_plot(mnist_dae_dataloader, dae_mnist_model, 'dae_psnr_mnist.png')
+    # print("mnist_psnr_mean", mnist_psnr_mean, "mnist_psnr_std", mnist_psnr_std)
     # generate_dae_psnr_plot(cifar10_dae_dataloader, dae_cifar10_model, 'dae_psnr_cifar10.png')
 
-    # generate_mae_ssim_plot(mnist_mae_dataloader, mae_mnist_model, 'mae_ssim_mnist.png', greyscale=True)
+    # mnist_ssim_mean, mnist_ssim_std = generate_mae_ssim_plot(mnist_mae_dataloader, mae_mnist_model, 'mae_ssim_mnist.png', greyscale=True)
+    # print("mnist_ssim_mean", mnist_ssim_mean, "mnist_ssim_std", mnist_ssim_std)
     # generate_mae_ssim_plot(cifar10_mae_dataloader, mae_cifar10_model, 'mae_ssim_cifar10.png', greyscale=False)
-    # generate_dae_ssim_plot(mnist_dae_dataloader, dae_mnist_model, 'dae_ssim_mnist.png', greyscale=True)
+    # mnist_ssim_mean, mnist_ssim_std = generate_dae_ssim_plot(mnist_dae_dataloader, dae_mnist_model, 'dae_ssim_mnist.png', greyscale=True)
+    # print("mnist_ssim_mean", mnist_ssim_mean, "mnist_ssim_std", mnist_ssim_std)
     # generate_dae_ssim_plot(cifar10_dae_dataloader, dae_cifar10_model, 'dae_ssim_cifar10.png', greyscale=False)
 
-    model = CIFAR10DenoisingAutoencoder()
-    model.load_state_dict(torch.load("color_jittering/color_jitter_dae_weights_epoch_29.pth", weights_only=True, map_location=torch.device('cpu')))
-    model.eval()
-    visualize(cifar10_dae_dataloader, model, 'dae_cifar10.png')
+    # cifar_psnr_mean, cifar_psnr_std = generate_mae_psnr_plot(jittered_mae_dataloader, mae_jitter_model, 'mae_psnr_cifar10_jitter.png')
+    # print(cifar_psnr_mean, cifar_psnr_std)
+    # cifar_psnr_mean, cifar_psnr_std = generate_dae_psnr_plot(jittered_dae_dataloader, dae_jitter_model, 'dae_psnr_cifar10_jitter.png')
+    # print(cifar_psnr_mean, cifar_psnr_std)
+    cifar_ssim_mean, cifar_ssim_std = generate_mae_ssim_plot(jittered_mae_dataloader, mae_jitter_model, 'mae_ssim_cifar10_jitter.png')
+    print(cifar_ssim_mean, cifar_ssim_std)
+    cifar_ssim_mean, cifar_ssim_std = generate_dae_ssim_plot(jittered_dae_dataloader, dae_jitter_model, 'dae_ssim_cifar10_jitter.png')
+    print(cifar_ssim_mean, cifar_ssim_std)

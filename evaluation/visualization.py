@@ -13,10 +13,12 @@ def clamp(x):
     return (x - torch.min(x)) / (torch.max(x) - torch.min(x))
 
 def visualize_mae_pairs(dataloader, model, mask_ratio=0.75):
+    original_trainloader, original_testloader = load_cifar10_for_mae()
+    original_images, _ = next(iter(original_testloader))[:5]
     with torch.no_grad():
         for images, _ in dataloader:
             images = images[:5]
-            print(images.shape)
+
             loss, pred, mask = model(images.float())
             mask = mask.unsqueeze(-1).repeat(1, 1, 2**2*3)
             mask = model.unpatchify(mask)
@@ -25,28 +27,35 @@ def visualize_mae_pairs(dataloader, model, mask_ratio=0.75):
 
             # renormalize
             for i in range(5):
+                original_image = clamp(original_images[i])
                 image = clamp(images[i])
                 r = clamp(reconstructed[i])
-                print(image.shape)
-                print(reconstructed.shape)
+                # print(image.shape)
+                # print(reconstructed.shape)
                 
-                plt.subplot(2, 5, i + 1)  # Top row
-                plt.imshow(image.permute(1, 2, 0).numpy())
+                plt.subplot(3, 5, i + 1)  # Top row
+                plt.imshow(original_image.permute(1, 2, 0).numpy())
                 plt.title("Original")  # Add title
                 plt.axis("off")  # Remove axis for better visual appeal
 
-                plt.subplot(2, 5, i + 6)  # Bottom row
+                plt.subplot(3, 5, i + 6)  # Middle row
+                plt.imshow(image.permute(1, 2, 0).numpy())
+                plt.title("Jittered")  # Add title
+                plt.axis("off")
+
+                plt.subplot(3, 5, i + 11)  # Bottom row
                 plt.imshow(r.permute(1, 2, 0).numpy())
                 plt.title("Reconstructed")  # Add title
                 plt.axis("off")
             
-            plt.suptitle("MAE Reconstruction for Color-Jittered Images", fontsize=16, fontweight='bold')
-            plt.tight_layout(rect=[0, 0, 1, 0.95])
+            plt.tight_layout()
             plt.savefig('final_writeup/Reconstructions/jitter_mae_reconstruction.png')
             break
     return
 
 def visualize_dae_pairs(dataloader, model):
+    original_trainloader, original_testloader = load_cifar10_for_dae()
+    original_images, _ = next(iter(original_testloader))[:5]
     with torch.no_grad():
         for images, _ in dataloader:
             images = images[:5]
@@ -59,20 +68,25 @@ def visualize_dae_pairs(dataloader, model):
 
             # renormalize
             for i in range(5):
-                image = clamp(images[i])
-                r = clamp(reconstructed[i])
+                original_image = clamp(original_images[i])
+                noised_image = clamp(noisy_images[i])
+                reconstructed_image = clamp(reconstructed[i])
                 
-                plt.subplot(2, 5, i + 1)  # Top row
-                plt.imshow(image.permute(1, 2, 0).numpy())
+                plt.subplot(3, 5, i + 1)  # Top row
+                plt.imshow(original_image.permute(1, 2, 0).numpy())
                 plt.title("Original")  # Add title
                 plt.axis("off")  # Remove axis for better visual appeal
 
-                plt.subplot(2, 5, i + 6)  # Bottom row
-                plt.imshow(r.permute(1, 2, 0).numpy())
+                plt.subplot(3, 5, i + 6)  # Middle row
+                plt.imshow(noised_image.permute(1, 2, 0).numpy())
+                plt.title("Jittered+Noise")  # Add title
+                plt.axis("off")
+
+                plt.subplot(3, 5, i + 11)  # Bottom row
+                plt.imshow(reconstructed_image.permute(1, 2, 0).numpy())
                 plt.title("Reconstructed")  # Add title
                 plt.axis("off")
             
-            plt.suptitle("DAE Reconstruction for Color-Jittered Images", fontsize=16, fontweight='bold')
             plt.tight_layout(rect=[0, 0, 1, 0.95])
             plt.savefig('final_writeup/Reconstructions/jitter_dae_reconstruction.png')
             break
@@ -92,4 +106,4 @@ if __name__ == "__main__":
     trainloader, testloader = load_jittered_cifar10_for_dae()
     model = load_jittered_dae()
 
-    visualize_dae_pairs(trainloader, model)
+    visualize_dae_pairs(testloader, model)
